@@ -42,3 +42,10 @@ The system consists of three independent microservices:
 **Architecture Sketch:** (https://drive.google.com/file/d/1Tk8URZe2I9GTjftpvUQwsoyo_lPjdFng/view?usp=sharing)
 
 ---
+
+## Repository Setup Instructions
+
+1. **Clone the repository**  
+   ```bash
+   git clone [<repository_url>](https://github.com/meklithab/distributed-parcel-delivery-system)
+   cd distributed-parcel-delivery-system
