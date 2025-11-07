@@ -47,6 +47,6 @@ The system consists of three independent microservices:
 
 1. **Clone the repository**  
    ```bash
-git clone https://github.com/meklithab/distributed-parcel-delivery-system
-cd distributed-parcel-delivery-system
+   git clone https://github.com/meklithab/distributed-parcel-delivery-system
+   cd distributed-parcel-delivery-system
 
