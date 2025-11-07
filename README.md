@@ -1,1 +1,47 @@
-# distributed-parcel-delivery-system
+# Distributed Parcel Delivery & Tracking System
+
+## Project Overview
+This project implements a **distributed parcel delivery system** using microservices and a **Pub/Sub messaging pattern**. It allows customers to create shipment requests, track their packages, and receive real-time updates. The system is designed for **scalability, reliability, and real-time communication**.
+
+---
+
+## Team Members
+
+| Name | Email | Role |
+|------|-------|------|
+| Liya Tsegaye | liyatsegaye2301@gmail.com | Project Lead |
+| Maedot Amha | maedotamha@gmail.com | Backend Developer |
+| Marsilas Wondimagegnehu | marsilasw0@gmail.com | Integration Engineer |
+| Meklit Habtamu | mkedu101@gmail.com | Testing / QA Engineer |
+| Meklit Melkamu | meklitmelkamu34@gmail.com | DevOps / Deployment |
+| Melat Mekonnen | melatmek8@gmail.com | Documentation Lead / Frontend Developer |
+
+---
+
+## Problem Statement
+Parcel delivery platforms require several independent backend components to work together so customers can create shipment requests, track their packages, and receive real-time updates. Monolithic applications struggle with scalability and real-time event handling. This project addresses these challenges by implementing a distributed system with microservices and asynchronous messaging.
+
+---
+
+## Objectives
+- Implement three independent microservices: **Package Service**, **Delivery Service**, and **Notification Service**.
+- Use **REST** for synchronous operations (e.g., package creation, tracking queries).
+- Use **Kafka/RabbitMQ/Redis Streams** for asynchronous events.
+- Deploy all services with **Docker Compose**.
+- Produce professional documentation including **API specs**, **event schemas**, and **system architecture**.
+
+---
+
+## Proposed Architecture
+The system consists of three independent microservices:
+
+1. **Package Service**: Registers customer shipment requests and publishes `package.created` events.
+2. **Delivery Service**: Subscribes to `package.created` events, assigns couriers, updates delivery status, and publishes `delivery.updated` events.
+3. **Notification Service**: Subscribes to status updates and notifies customers in real time.
+
+**Architecture Sketch:** (https://drive.google.com/file/d/1Tk8URZe2I9GTjftpvUQwsoyo_lPjdFng/view?usp=sharing)
+
+
+**Architecture Sketch:** [Insert link to Draw.io diagram](https://drive.google.com/file/d/1Tk8URZe2I9GTjftpvUQwsoyo_lPjdFng/view?usp=sharing)
+
+---
