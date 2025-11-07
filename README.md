@@ -41,7 +41,4 @@ The system consists of three independent microservices:
 
 **Architecture Sketch:** (https://drive.google.com/file/d/1Tk8URZe2I9GTjftpvUQwsoyo_lPjdFng/view?usp=sharing)
 
-
-**Architecture Sketch:** [Insert link to Draw.io diagram](https://drive.google.com/file/d/1Tk8URZe2I9GTjftpvUQwsoyo_lPjdFng/view?usp=sharing)
-
 ---
