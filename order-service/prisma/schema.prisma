@@ -1,0 +1,46 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  user_id          String
+  pickup_lat       Float
+  pickup_lng       Float
+  pickup_address   String?
+  dropoff_lat      Float
+  dropoff_lng      Float
+  dropoff_address  String?
+  
+  sender_name      String?
+  sender_phone     String?
+  receiver_name    String
+  receiver_phone   String
+  
+  package_type     String?      @default("STANDARD") // STANDARD, EXPRESS, FRAGILE
+  weight           Float?       // in kg
+  
+  status           OrderStatus @default(PENDING)
+  price            Float
+  
+  courier_id       String?
+  
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+
+  @@map("orders")
+}

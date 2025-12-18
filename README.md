@@ -24,7 +24,7 @@ Parcel delivery platforms require several independent backend components to work
 ---
 
 ## Objectives
-- Implement three independent microservices: **Package Service**, **Delivery Service**, and **Notification Service**.
+- Implement three independent microservices: **Package Service**, **User Service**, and **Notification Service**.
 - Use **REST** for synchronous operations (e.g., package creation, tracking queries).
 - Use **Kafka/RabbitMQ/Redis Streams** for asynchronous events.
 - Deploy all services with **Docker Compose**.
@@ -36,10 +36,9 @@ Parcel delivery platforms require several independent backend components to work
 The system consists of three independent microservices:
 
 1. **Package Service**: Registers customer shipment requests and publishes `package.created` events.
-2. **Delivery Service**: Subscribes to `package.created` events, assigns couriers, updates delivery status, and publishes `delivery.updated` events.
+2. **User Service**: Manages customer and courier information, subscribes to package.created events to validate sender/receiver IDs, and publishes user.updated events when user or courier data changes.
 3. **Notification Service**: Subscribes to status updates and notifies customers in real time.
 
-**Architecture Sketch:** (https://drive.google.com/file/d/1Tk8URZe2I9GTjftpvUQwsoyo_lPjdFng/view?usp=sharing)
 
 ---
 
