@@ -11,5 +11,7 @@ router.use(authorize(['CUSTOMER'])); // Only customers can access these
 router.get('/me/profile', CustomerController.getCustomerProfile);
 router.get('/me/addresses', CustomerController.getAddresses);
 router.post('/me/addresses', CustomerController.addAddress);
+router.put('/me/notification-preferences', CustomerController.updateNotificationPreferences);
 
 export default router;
+
