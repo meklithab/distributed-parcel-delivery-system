@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # Databases
+  db-user:
+    image: postgres:15-alpine
+    container_name: db-user
+    environment:
+      POSTGRES_DB: user_service_db
+      POSTGRES_USER: delivery_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-YourStrongPassword123}
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./db/init_scripts/01_init_user_db.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  db-order:
+    image: postgres:15-alpine
+    container_name: db-order
+    environment:
+      POSTGRES_DB: order_service_db
+      POSTGRES_USER: delivery_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-YourStrongPassword123}
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./db/init_scripts/02_init_order_db.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  db-payment:
+    image: postgres:15-alpine
+    container_name: db-payment
+    environment:
+      POSTGRES_DB: payment_service_db
+      POSTGRES_USER: delivery_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-YourStrongPassword123}
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./db/init_scripts/03_init_payment_db.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672" # AMQP protocol port
+      - "15672:15672" # Management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    restart: unless-stopped
+
+  # Microservices
+  user-service:
+    build: ./user-service
+    container_name: user-app
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=postgresql://delivery_user:${DB_PASSWORD:-YourStrongPassword123}@db-user:5432/user_service_db
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey123}
+      - PORT=3001
+    depends_on:
+      - db-user
+      - rabbitmq
+    restart: unless-stopped
+
+  order-service:
+    build: ./order-service
+    container_name: order-app
+    ports:
+      - "3002:3002"
+    environment:
+      - DATABASE_URL=postgresql://delivery_user:${DB_PASSWORD:-YourStrongPassword123}@db-order:5432/order_service_db
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey123}
+      - PORT=3002
+    depends_on:
+      - db-order
+      - rabbitmq
+    restart: unless-stopped
+
+  payment-service:
+    build: ./payment-service
+    container_name: payment-app
+    ports:
+      - "3003:3003"
+    environment:
+      - DATABASE_URL=postgresql://delivery_user:${DB_PASSWORD:-YourStrongPassword123}@db-payment:5432/payment_service_db
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey123}
+      - PORT=3003
+    depends_on:
+      - db-payment
+      - rabbitmq
+    restart: unless-stopped
+
+  notification-service:
+    build: ./notification-service
+    container_name: notification-app
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq:5672
+    depends_on:
+      - rabbitmq
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: frontend-app
+    ports:
+      - "5173:5173"
+    depends_on:
+      - user-service
+      - order-service
+      - payment-service
+    restart: unless-stopped
