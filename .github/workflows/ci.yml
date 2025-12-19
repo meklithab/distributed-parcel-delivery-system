@@ -1,0 +1,40 @@
+name: Microservices CI
+
+on:
+  push:
+    branches: [ "main", "meklit-branch" ]
+  pull_request:
+    branches: [ "main", "meklit-branch" ]
+
+jobs:
+  validate-services:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [user-service, order-service, payment-service, notification-service, frontend]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+        cache-dependency-path: './${{ matrix.service }}/package-lock.json'
+
+    - name: Install dependencies
+      run: npm install
+      working-directory: ./${{ matrix.service }}
+
+    - name: Run Build
+      run: npm run build --if-present
+      working-directory: ./${{ matrix.service }}
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Docker Compose Build
+      run: docker-compose build

@@ -1,7 +1,12 @@
 # Distributed Parcel Delivery & Tracking System
 
 ## Project Overview
+![CI Status](https://img.shields.io/github/actions/workflow/status/meklithab/distributed-parcel-delivery-system/ci.yml?branch=meklit-branch&label=CI%2FCD%20Pipeline)
+
 This project implements a **distributed parcel delivery system** using microservices and a **Pub/Sub messaging pattern**. It allows customers to create shipment requests, track their packages, and receive real-time updates. The system is designed for **scalability, reliability, and real-time communication**.
+
+> [!IMPORTANT]
+> **[Read the Full Technical Documentation & Report here](./Project_Documentation.md)**
 
 ---
 
