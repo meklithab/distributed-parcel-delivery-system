@@ -7,6 +7,7 @@ import morgan from 'morgan';
 import { rabbitMQ } from './config/rabbitmq';
 import { startOrderConsumer } from './events/consumers/order.consumer';
 import paymentRoutes from './routes/payment.routes';
+import chappaRoutes from './routes/chappa.routes'
 
 dotenv.config();
 
@@ -18,8 +19,12 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
+
 // Routes
 app.use('/api/payments', paymentRoutes);
+app.use("/api/chapa", chappaRoutes);
+
+
 
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({
