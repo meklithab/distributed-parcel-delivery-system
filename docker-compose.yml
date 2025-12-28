@@ -9,6 +9,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-YourStrongPassword123}
     ports:
       - "5435:5432"
+    volumes:
+      - ./db/init_scripts/01_init_user_db.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 
   db-order:
@@ -20,6 +22,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-YourStrongPassword123}
     ports:
       - "5433:5432"
+    volumes:
+      - ./db/init_scripts/02_init_order_db.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 
   db-payment:
@@ -31,6 +35,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-YourStrongPassword123}
     ports:
       - "5434:5432"
+    volumes:
+      - ./db/init_scripts/03_init_payment_db.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 
   # RabbitMQ Message Broker
@@ -38,7 +44,7 @@ services:
     image: rabbitmq:3-management
     container_name: rabbitmq
     ports:
-      - "5672:5672"   # AMQP protocol port
+      - "5672:5672" # AMQP protocol port
       - "15672:15672" # Management UI port
     environment:
       RABBITMQ_DEFAULT_USER: guest
@@ -110,3 +116,5 @@ services:
       - order-service
       - payment-service
     restart: unless-stopped
+
+
