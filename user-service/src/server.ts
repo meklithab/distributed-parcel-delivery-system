@@ -7,7 +7,9 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import customerRoutes from './routes/customer.routes';
 import courierRoutes from './routes/courier.routes';
-import { rabbitMQ } from './config/rabbitmq'; 
+import addressRoutes from './routes/address.routes';
+import ratingRoutes from './routes/rating.routes';
+import { rabbitMQ } from './config/rabbitmq';
 import { startPackageConsumer } from './events/consumers/package.consumer';
 
 
@@ -31,6 +33,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/couriers', courierRoutes);
+app.use('/api/addresses', addressRoutes);
+app.use('/api/ratings', ratingRoutes);
 
 
 
