@@ -1,0 +1,2182 @@
+================================================================================
+                    COMPLETE API SPECIFICATION
+        Distributed Parcel Delivery & Tracking System
+================================================================================
+
+Version: 1.0
+Last Updated: December 19, 2025
+Status: Development
+
+BASE URLS:
+  - User Service:         http://localhost:3001
+  - Order Service:        http://localhost:3002  
+  - Payment Service:      http://localhost:3003
+  - Notification Service: http://localhost:3004 (Consumer only, no HTTP)
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+
+1. AUTHENTICATION & AUTHORIZATION
+2. USER SERVICE APIs
+   2.1 Authentication Endpoints
+   2.2 User Profile Management
+   2.3 Admin User Management
+   2.4 Customer-Specific Endpoints
+   2.5 Courier-Specific Endpoints
+3. ORDER/PACKAGE SERVICE APIs
+   3.1 Order Management
+   3.2 Courier Assignment
+   3.3 Order Status Updates
+   3.4 Order Tracking
+4. PAYMENT SERVICE APIs
+   4.1 Payment Processing
+   4.2 Payment Status
+5. NOTIFICATION SERVICE APIs
+   5.1 Notification Retrieval
+6. TRACKING SERVICE APIs
+   6.1 Real-time Tracking
+7. RATING & REVIEW APIs
+8. COMMON PATTERNS
+9. ERROR RESPONSES
+10. EVENT CONTRACTS
+
+LEGEND:
+  [IMPLEMENTED] - Currently implemented in the codebase
+  [NEEDED]      - Specified in swagger.yaml but not yet implemented
+  [FUTURE]      - Recommended for complete system functionality
+
+================================================================================
+1. AUTHENTICATION & AUTHORIZATION
+================================================================================
+
+Authentication Method: JWT (JSON Web Tokens)
+Header Format: Authorization: Bearer <access_token>
+
+User Roles:
+  - CUSTOMER: Regular users who create orders
+  - COURIER:  Delivery personnel  
+  - ADMIN:    System administrators
+
+Token Expiration:
+  - Access Token:  1 hour
+  - Refresh Token: 7-30 days (not yet implemented)
+
+================================================================================
+2. USER SERVICE APIs
+================================================================================
+Base URL: http://localhost:3001
+
+--------------------------------------------------------------------------------
+2.1 AUTHENTICATION ENDPOINTS
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] POST /auth/register
+Description: Register a new user account (customer or courier)
+Authentication: None
+Request Body:
+  {
+    "email": "user@example.com",           // Required, valid email
+    "password": "SecurePass123",           // Required, min 6 characters
+    "first_name": "John",                  // Required
+    "last_name": "Doe",                    // Required
+    "phone_number": "+251911234567",       // Required
+    "user_role": "CUSTOMER",               // Optional: CUSTOMER (default) or COURIER
+    "date_of_birth": "1990-01-15"          // Optional: ISO date format
+  }
+Response 201:
+  {
+    "message": "User registered successfully",
+    "user": {
+      "user_id": "uuid",
+      "email": "user@example.com",
+      "first_name": "John",
+      "last_name": "Doe",
+      "phone_number": "+251911234567",
+      "user_role": "CUSTOMER",
+      "is_active": true,
+      "is_verified": false,
+      "created_at": "2025-12-19T09:00:00.000Z"
+    }
+  }
+Errors:
+  - 400: Validation errors or user already exists
+  - 500: Internal server error
+Events Published:
+  - user.created
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] POST /auth/login
+Description: Authenticate user and receive JWT token
+Authentication: None
+Request Body:
+  {
+    "email": "user@example.com",
+    "password": "SecurePass123"
+  }
+Response 200:
+  {
+    "message": "Login successful",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "uuid",
+      "email": "user@example.com",
+      "role": "CUSTOMER"
+    }
+  }
+Errors:
+  - 401: Invalid credentials
+  - 500: Server error
+
+--------------------------------------------------------------------------------
+
+[NEEDED] POST /auth/refresh
+Description: Refresh access token using refresh token
+Authentication: None (refresh token in body)
+Request Body:
+  {
+    "refreshToken": "refresh_token_string"
+  }
+Response 200:
+  {
+    "accessToken": "new_access_token",
+    "refreshToken": "new_refresh_token"  // Token rotation
+  }
+Errors:
+  - 401: Invalid or expired refresh token
+Implementation Notes:
+  - Implement refresh token rotation for security
+  - Store refresh token hash in user_sessions table
+  - Invalidate old refresh token after use
+
+--------------------------------------------------------------------------------
+
+[NEEDED] POST /auth/logout
+Description: Logout user and invalidate tokens
+Authentication: Bearer token
+Request Body:
+  {
+    "refreshToken": "refresh_token_string"  // Optional
+  }
+Response 200:
+  {
+    "message": "Logged out successfully"
+  }
+Implementation Notes:
+  - Delete session from user_sessions table
+  - Invalidate refresh token
+  - Client should delete access token from storage
+
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /auth/forgot-password
+Description: Request password reset email
+Authentication: None
+Request Body:
+  {
+    "email": "user@example.com"
+  }
+Response 200:
+  {
+    "message": "Password reset email sent"
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /auth/reset-password
+Description: Reset password using reset token
+Authentication: None
+Request Body:
+  {
+    "token": "reset_token",
+    "newPassword": "NewSecurePass123"
+  }
+Response 200:
+  {
+    "message": "Password reset successful"
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /auth/verify-email
+Description: Verify email address using verification token
+Authentication: None
+Request Body:
+  {
+    "token": "verification_token"
+  }
+Response 200:
+  {
+    "message": "Email verified successfully"
+  }
+
+--------------------------------------------------------------------------------
+2.2 USER PROFILE MANAGEMENT
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] GET /users/me
+Description: Get authenticated user's profile
+Authentication: Bearer token
+Response 200:
+  {
+    "user_id": "uuid",
+    "email": "user@example.com",
+    "first_name": "John",
+    "last_name": "Doe",
+    "phone_number": "+251911234567",
+    "user_role": "CUSTOMER",
+    "date_of_birth": "1990-01-15",
+    "is_active": true,
+    "is_verified": false,
+    "profile_image_url": null,
+    "created_at": "2025-12-19T09:00:00.000Z",
+    "updated_at": "2025-12-19T09:00:00.000Z",
+    "last_login_at": "2025-12-19T09:05:00.000Z"
+  }
+Errors:
+  - 401: Unauthorized
+  - 404: User not found
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] PUT /users/me
+Description: Update authenticated user's profile
+Authentication: Bearer token
+Request Body (all fields optional):
+  {
+    "first_name": "John",
+    "last_name": "Smith",
+    "phone_number": "+251922345678",
+    "date_of_birth": "1990-01-15",
+    "profile_image_url": "https://example.com/avatar.jpg"
+  }
+Response 200:
+  {
+    "message": "Profile updated successfully",
+    "user": { /* updated user object */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 400: Validation errors
+Events Published:
+  - user.updated
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] DELETE /users/me
+Description: Soft delete user account (sets is_active to false)
+Authentication: Bearer token
+Response 200:
+  {
+    "message": "Account deleted successfully"
+  }
+Errors:
+  - 401: Unauthorized
+  - 500: Server error
+Events Published:
+  - user.deleted
+
+--------------------------------------------------------------------------------
+
+[FUTURE] PATCH /users/me/password
+Description: Change user password
+Authentication: Bearer token
+Request Body:
+  {
+    "currentPassword": "OldPass123",
+    "newPassword": "NewPass123"
+  }
+Response 200:
+  {
+    "message": "Password changed successfully"
+  }
+Errors:
+  - 401: Current password incorrect
+  - 400: Validation errors
+
+--------------------------------------------------------------------------------
+2.3 ADMIN USER MANAGEMENT
+--------------------------------------------------------------------------------
+
+[NEEDED] GET /users
+Description: Get all users (paginated)
+Authentication: Bearer token (ADMIN role)
+Query Parameters:
+  - page: Page number (default: 1)
+  - limit: Items per page (default: 20)
+  - role: Filter by role (CUSTOMER, COURIER, ADMIN)
+  - is_active: Filter by active status (true/false)
+  - search: Search by name, email, or phone
+Response 200:
+  {
+    "users": [
+      { /* user object */ }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 150,
+      "totalPages": 8
+    }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden (not admin)
+
+--------------------------------------------------------------------------------
+
+[NEEDED] GET /users/:id
+Description: Get user by ID
+Authentication: Bearer token (ADMIN role or own profile)
+Path Parameters:
+  - id: User UUID
+Response 200:
+  {
+    /* full user object with profile details */
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 404: User not found
+
+--------------------------------------------------------------------------------
+
+[NEEDED] PUT /users/:id
+Description: Update user details (admin)
+Authentication: Bearer token (ADMIN role)
+Path Parameters:
+  - id: User UUID
+Request Body:
+  {
+    "first_name": "John",
+    "last_name": "Doe",
+    "phone_number": "+251911234567",
+    "is_active": true,
+    "is_verified": true
+  }
+Response 200:
+  {
+    "message": "User updated successfully",
+    "user": { /* updated user */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 404: User not found
+
+--------------------------------------------------------------------------------
+
+[NEEDED] PATCH /users/:id/role
+Description: Update user role
+Authentication: Bearer token (ADMIN role)
+Path Parameters:
+  - id: User UUID
+Request Body:
+  {
+    "role": "COURIER"  // CUSTOMER, COURIER, ADMIN
+  }
+Response 200:
+  {
+    "message": "Role updated successfully"
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Invalid role
+
+--------------------------------------------------------------------------------
+
+[FUTURE] DELETE /users/:id
+Description: Hard delete user (admin only, use with caution)
+Authentication: Bearer token (ADMIN role)
+Path Parameters:
+  - id: User UUID
+Response 200:
+  {
+    "message": "User permanently deleted"
+  }
+
+--------------------------------------------------------------------------------
+2.4 CUSTOMER-SPECIFIC ENDPOINTS
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] GET /customers/me/profile
+Description: Get customer profile details
+Authentication: Bearer token (CUSTOMER role)
+Response 200:
+  {
+    "customer_profile_id": "uuid",
+    "user_id": "uuid",
+    "preferred_notification_method": "SMS",
+    "email_notifications_enabled": true,
+    "sms_notifications_enabled": true,
+    "created_at": "2025-12-19T09:00:00.000Z",
+    "updated_at": "2025-12-19T09:00:00.000Z"
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden (not a customer)
+  - 404: Profile not found
+
+--------------------------------------------------------------------------------
+
+[FUTURE] PUT /customers/me/profile
+Description: Update customer profile preferences
+Authentication: Bearer token (CUSTOMER role)
+Request Body:
+  {
+    "preferred_notification_method": "EMAIL",  // SMS, EMAIL, PUSH
+    "email_notifications_enabled": true,
+    "sms_notifications_enabled": false
+  }
+Response 200:
+  {
+    "message": "Profile updated successfully",
+    "profile": { /* updated profile */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] GET /customers/me/addresses
+Description: Get all addresses for customer
+Authentication: Bearer token (CUSTOMER role)
+Response 200:
+  [
+    {
+      "address_id": "uuid",
+      "user_id": "uuid",
+      "address_type": "HOME",
+      "street_address": "Bole Road, near Atlas Hotel",
+      "subcity": "Bole",
+      "kebele": "03",
+      "woreda": "08",
+      "house_number": "H-123",
+      "landmark": "Next to Edna Mall",
+      "is_default": true,
+      "created_at": "2025-12-19T09:00:00.000Z",
+      "updated_at": "2025-12-19T09:00:00.000Z"
+    }
+  ]
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] POST /customers/me/addresses
+Description: Add new address
+Authentication: Bearer token (CUSTOMER role)
+Request Body:
+  {
+    "address_type": "HOME",           // HOME, WORK, OTHER
+    "street_address": "Bole Road",    // Required
+    "subcity": "Bole",                // Required
+    "kebele": "03",                   // Required
+    "woreda": "08",                   // Optional
+    "house_number": "H-123",          // Optional
+    "landmark": "Next to Edna Mall",  // Optional
+    "is_default": true                // Optional, default: false
+  }
+Response 201:
+  {
+    "message": "Address added successfully",
+    "address": { /* created address */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Validation errors
+
+--------------------------------------------------------------------------------
+
+[FUTURE] PUT /customers/me/addresses/:addressId
+Description: Update existing address
+Authentication: Bearer token (CUSTOMER role)
+Path Parameters:
+  - addressId: Address UUID
+Request Body:
+  {
+    "street_address": "Updated address",
+    "is_default": true
+  }
+Response 200:
+  {
+    "message": "Address updated successfully",
+    "address": { /* updated address */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] DELETE /customers/me/addresses/:addressId
+Description: Delete address
+Authentication: Bearer token (CUSTOMER role)
+Path Parameters:
+  - addressId: Address UUID
+Response 200:
+  {
+    "message": "Address deleted successfully"
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /customers/me/orders
+Description: Get customer's order history
+Authentication: Bearer token (CUSTOMER role)
+Query Parameters:
+  - status: Filter by status
+  - page: Page number
+  - limit: Items per page
+Response 200:
+  {
+    "orders": [ /* array of orders */ ],
+    "pagination": { /* pagination info */ }
+  }
+
+--------------------------------------------------------------------------------
+2.5 COURIER-SPECIFIC ENDPOINTS
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] GET /couriers/me/profile
+Description: Get courier profile details
+Authentication: Bearer token (COURIER role)
+Response 200:
+  {
+    "courier_profile_id": "uuid",
+    "user_id": "uuid",
+    "id_number": "ID-12345",
+    "hire_date": "2025-01-01",
+    "employment_type": "FULL_TIME",
+    "status": "AVAILABLE",
+    "rating": "4.85",
+    "total_deliveries_completed": 127,
+    "on_time_delivery_rate": "96.50",
+    "current_latitude": "9.0320",
+    "current_longitude": "38.7469",
+    "last_location_update": "2025-12-19T09:00:00.000Z",
+    "is_online": true,
+    "created_at": "2025-01-01T08:00:00.000Z",
+    "updated_at": "2025-12-19T09:00:00.000Z"
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden (not a courier)
+  - 404: Profile not found
+
+--------------------------------------------------------------------------------
+
+[FUTURE] PUT /couriers/me/profile
+Description: Update courier profile
+Authentication: Bearer token (COURIER role)
+Request Body:
+  {
+    "id_number": "ID-12345",
+    "employment_type": "FULL_TIME"  // FULL_TIME, PART_TIME, CONTRACT
+  }
+Response 200:
+  {
+    "message": "Profile updated successfully",
+    "profile": { /* updated profile */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] PUT /couriers/me/status
+Description: Update courier availability status
+Authentication: Bearer token (COURIER role)
+Request Body:
+  {
+    "status": "AVAILABLE",  // AVAILABLE, BUSY, OFFLINE
+    "is_online": true
+  }
+Response 200:
+  {
+    "message": "Status updated successfully",
+    "courier": {
+      "courier_profile_id": "uuid",
+      "status": "AVAILABLE",
+      "is_online": true,
+      "updated_at": "2025-12-19T09:20:00.000Z"
+    }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Invalid status
+Events Published:
+  - courier.status_changed
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] PUT /couriers/me/location
+Description: Update courier GPS location
+Authentication: Bearer token (COURIER role)
+Request Body:
+  {
+    "latitude": 9.0320,
+    "longitude": 38.7469
+  }
+Response 200:
+  {
+    "message": "Location updated successfully",
+    "courier": {
+      "courier_profile_id": "uuid",
+      "current_latitude": "9.0320",
+      "current_longitude": "38.7469",
+      "last_location_update": "2025-12-19T09:25:00.000Z"
+    }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Invalid coordinates
+Events Published:
+  - courier.location_updated
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] POST /couriers/me/vehicles
+Description: Add vehicle to courier profile
+Authentication: Bearer token (COURIER role)
+Request Body:
+  {
+    "vehicle_type": "MOTORCYCLE",     // MOTORCYCLE, CAR, BICYCLE, VAN
+    "make": "Bajaj",
+    "model": "Boxer",
+    "license_plate": "AA-12345",
+    "capacity_weight_kg": 50.00,
+    "status": "ACTIVE",               // Optional: ACTIVE, MAINTENANCE, INACTIVE
+    "is_available": true              // Optional
+  }
+Response 201:
+  {
+    "message": "Vehicle added successfully",
+    "vehicle": { /* created vehicle */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Validation errors or duplicate license plate
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /couriers/me/vehicles
+Description: Get all courier's vehicles
+Authentication: Bearer token (COURIER role)
+Response 200:
+  [
+    { /* vehicle object */ }
+  ]
+
+--------------------------------------------------------------------------------
+
+[FUTURE] PUT /couriers/me/vehicles/:vehicleId
+Description: Update vehicle details
+Authentication: Bearer token (COURIER role)
+Path Parameters:
+  - vehicleId: Vehicle UUID
+Request Body:
+  {
+    "status": "MAINTENANCE",
+    "is_available": false
+  }
+Response 200:
+  {
+    "message": "Vehicle updated successfully",
+    "vehicle": { /* updated vehicle */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] DELETE /couriers/me/vehicles/:vehicleId
+Description: Delete vehicle
+Authentication: Bearer token (COURIER role)
+Path Parameters:
+  - vehicleId: Vehicle UUID
+Response 200:
+  {
+    "message": "Vehicle deleted successfully"
+  }
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] POST /couriers/me/availability
+Description: Add availability schedule
+Authentication: Bearer token (COURIER role)
+Request Body:
+  {
+    "day_of_week": 1,           // 0=Sunday, 1=Monday, ..., 6=Saturday
+    "start_time": "08:00:00",
+    "end_time": "18:00:00",
+    "is_recurring": true        // Optional, default: true
+  }
+Response 201:
+  {
+    "message": "Availability added successfully",
+    "availability": { /* created availability */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Invalid time format or day_of_week
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /couriers/me/availability
+Description: Get courier's availability schedules
+Authentication: Bearer token (COURIER role)
+Response 200:
+  [
+    { /* availability object */ }
+  ]
+
+--------------------------------------------------------------------------------
+
+[FUTURE] DELETE /couriers/me/availability/:availabilityId
+Description: Delete availability schedule
+Authentication: Bearer token (COURIER role)
+Path Parameters:
+  - availabilityId: Availability UUID
+Response 200:
+  {
+    "message": "Availability deleted successfully"
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /couriers/me/assigned-orders
+Description: Get orders assigned to courier
+Authentication: Bearer token (COURIER role)
+Query Parameters:
+  - status: Filter by status
+Response 200:
+  {
+    "orders": [ /* array of assigned orders */ ]
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /couriers/me/delivery-history
+Description: Get courier's delivery history
+Authentication: Bearer token (COURIER role)
+Query Parameters:
+  - page: Page number
+  - limit: Items per page
+  - from_date: Start date filter
+  - to_date: End date filter
+Response 200:
+  {
+    "deliveries": [ /* array of completed deliveries */ ],
+    "statistics": {
+      "total_deliveries": 127,
+      "on_time_deliveries": 123,
+      "on_time_rate": "96.85",
+      "average_rating": "4.85"
+    },
+    "pagination": { /* pagination info */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /couriers/me/earnings
+Description: Get courier's earnings summary
+Authentication: Bearer token (COURIER role)
+Query Parameters:
+  - period: daily, weekly, monthly, yearly
+  - from_date: Start date
+  - to_date: End date
+Response 200:
+  {
+    "total_earnings": 15000.00,
+    "deliveries_count": 127,
+    "average_per_delivery": 118.11,
+    "breakdown": [
+      {
+        "date": "2025-12-19",
+        "deliveries": 8,
+        "earnings": 950.00
+      }
+    ]
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /couriers/me/ratings
+Description: Get ratings and reviews received
+Authentication: Bearer token (COURIER role)
+Query Parameters:
+  - page: Page number
+  - limit: Items per page
+Response 200:
+  {
+    "average_rating": "4.85",
+    "total_ratings": 98,
+    "ratings": [
+      {
+        "rating_id": "uuid",
+        "customer_id": "uuid",
+        "order_reference_id": "uuid",
+        "rating": 5,
+        "review_text": "Excellent service!",
+        "created_at": "2025-12-19T10:00:00.000Z"
+      }
+    ],
+    "pagination": { /* pagination info */ }
+  }
+
+================================================================================
+3. ORDER/PACKAGE SERVICE APIs
+================================================================================
+Base URL: http://localhost:3002
+
+--------------------------------------------------------------------------------
+3.1 ORDER MANAGEMENT
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] POST /orders
+Description: Create new delivery order
+Authentication: Bearer token
+Request Body:
+  {
+    "pickup_lat": 9.0320,
+    "pickup_lng": 38.7469,
+    "pickup_address": "Bole, Addis Ababa",    // Optional
+    "dropoff_lat": 9.0054,
+    "dropoff_lng": 38.7636,
+    "dropoff_address": "Megenagna, Addis Ababa",  // Optional
+    "receiver_name": "Jane Doe",
+    "receiver_phone": "+251922345678",
+    "package_type": "STANDARD",               // Optional: STANDARD, EXPRESS, FRAGILE
+    "weight": 2.5,                            // Optional: kg
+    "sender_name": "John Doe",                // Optional
+    "sender_phone": "+251911234567"           // Optional
+  }
+Response 201:
+  {
+    "id": "uuid",
+    "user_id": "uuid",
+    "pickup_lat": 9.0320,
+    "pickup_lng": 38.7469,
+    "pickup_address": "Bole, Addis Ababa",
+    "dropoff_lat": 9.0054,
+    "dropoff_lng": 38.7636,
+    "dropoff_address": "Megenagna, Addis Ababa",
+    "sender_name": "John Doe",
+    "sender_phone": "+251911234567",
+    "receiver_name": "Jane Doe",
+    "receiver_phone": "+251922345678",
+    "package_type": "STANDARD",
+    "weight": 2.5,
+    "status": "PENDING",
+    "price": 150.00,
+    "courier_id": null,
+    "created_at": "2025-12-19T09:40:00.000Z",
+    "updated_at": "2025-12-19T09:40:00.000Z"
+  }
+Price Calculation:
+  - Minimum: 50 ETB
+  - Formula: max(50, round(distance * 1000))
+Errors:
+  - 401: Unauthorized
+  - 400: Missing required fields
+  - 500: Server error
+Events Published:
+  - package.created
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] GET /orders/my-orders
+Description: Get authenticated user's orders
+Authentication: Bearer token
+Response 200:
+  [
+    { /* order object */ }
+  ]
+Ordering: Newest first (created_at DESC)
+Errors:
+  - 401: Unauthorized
+  - 500: Server error
+
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] GET /orders/:id
+Description: Get order by ID
+Authentication: Bearer token
+Path Parameters:
+  - id: Order UUID
+Response 200:
+  { /* order object */ }
+Errors:
+  - 401: Unauthorized
+  - 404: Order not found
+  - 500: Server error
+
+--------------------------------------------------------------------------------
+
+[NEEDED] GET /orders
+Description: Get all orders (admin only, paginated)
+Authentication: Bearer token (ADMIN role)
+Query Parameters:
+  - page: Page number (default: 1)
+  - limit: Items per page (default: 20)
+  - status: Filter by status
+  - user_id: Filter by user
+  - courier_id: Filter by courier
+  - from_date: Start date filter
+  - to_date: End date filter
+Response 200:
+  {
+    "orders": [ /* array of orders */ ],
+    "pagination": { /* pagination info */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden (not admin)
+
+--------------------------------------------------------------------------------
+
+[NEEDED] PUT /orders/:id
+Description: Update order details (before assignment)
+Authentication: Bearer token (own order or admin)
+Path Parameters:
+  - id: Order UUID
+Request Body:
+  {
+    "pickup_address": "Updated address",
+    "dropoff_address": "Updated address",
+    "receiver_name": "Updated name",
+    "receiver_phone": "+251922222222"
+  }
+Response 200:
+  {
+    "message": "Order updated successfully",
+    "order": { /* updated order */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Cannot update (already assigned/delivered)
+  - 404: Order not found
+
+--------------------------------------------------------------------------------
+
+[NEEDED] DELETE /orders/:id
+Description: Cancel order
+Authentication: Bearer token (own order or admin)
+Path Parameters:
+  - id: Order UUID
+Response 200:
+  {
+    "message": "Order cancelled successfully"
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Cannot cancel (already picked up/delivered)
+  - 404: Order not found
+Events Published:
+  - order.cancelled
+
+--------------------------------------------------------------------------------
+3.2 COURIER ASSIGNMENT
+--------------------------------------------------------------------------------
+
+[NEEDED] PATCH /orders/:id/assign
+Description: Assign courier to order
+Authentication: Bearer token (ADMIN role or auto-assignment system)
+Path Parameters:
+  - id: Order UUID
+Request Body:
+  {
+    "courier_id": "uuid"
+  }
+Response 200:
+  {
+    "message": "Courier assigned successfully",
+    "order": { /* updated order with courier_id */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Order already assigned or courier unavailable
+  - 404: Order or courier not found
+Events Published:
+  - order.assigned
+
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /orders/:id/auto-assign
+Description: Automatically assign nearest available courier
+Authentication: Bearer token (ADMIN role or system)
+Path Parameters:
+  - id: Order UUID
+Algorithm:
+  1. Find couriers with status=AVAILABLE and is_online=true
+  2. Calculate distance from courier location to pickup location
+  3. Check courier vehicle capacity vs package weight
+  4. Assign to nearest suitable courier
+Response 200:
+  {
+    "message": "Courier auto-assigned successfully",
+    "order": { /* updated order */ },
+    "courier": { /* assigned courier info */ }
+  }
+Errors:
+  - 404: No available couriers found
+Events Published:
+  - order.assigned
+
+--------------------------------------------------------------------------------
+
+[NEEDED] PATCH /orders/:id/unassign
+Description: Unassign courier from order
+Authentication: Bearer token (ADMIN role)
+Path Parameters:
+  - id: Order UUID
+Request Body:
+  {
+    "reason": "Courier unavailable"  // Optional
+  }
+Response 200:
+  {
+    "message": "Courier unassigned successfully"
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 400: Cannot unassign (already picked up)
+Events Published:
+  - order.unassigned
+
+--------------------------------------------------------------------------------
+3.3 ORDER STATUS UPDATES
+--------------------------------------------------------------------------------
+
+Order Status Flow:
+  PENDING -> ASSIGNED -> PICKED_UP -> DELIVERED
+                    \-> CANCELLED
+
+[NEEDED] PATCH /orders/:id/status
+Description: Update order status
+Authentication: Bearer token (assigned courier or admin)
+Path Parameters:
+  - id: Order UUID
+Request Body:
+  {
+    "status": "PICKED_UP",              // PENDING, ASSIGNED, PICKED_UP, DELIVERED, CANCELLED
+    "location": "Current location",     // Optional
+    "notes": "Package picked up"        // Optional
+  }
+Response 200:
+  {
+    "message": "Status updated successfully",
+    "order": { /* updated order */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden (not assigned courier)
+  - 400: Invalid status transition
+  - 404: Order not found
+Events Published:
+  - order.status_updated
+
+--------------------------------------------------------------------------------
+
+[NEEDED] POST /orders/:id/pickup
+Description: Mark order as picked up (courier action)
+Authentication: Bearer token (COURIER role, assigned to order)
+Path Parameters:
+  - id: Order UUID
+Request Body:
+  {
+    "pickup_time": "2025-12-19T10:00:00.000Z",  // Optional, defaults to now
+    "notes": "Package picked up from sender"    // Optional
+  }
+Response 200:
+  {
+    "message": "Order marked as picked up",
+    "order": { /* updated order */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden (not assigned courier)
+  - 400: Order not in ASSIGNED status
+Events Published:
+  - order.status_updated (status: PICKED_UP)
+
+--------------------------------------------------------------------------------
+
+[NEEDED] POST /orders/:id/deliver
+Description: Mark order as delivered (courier action)
+Authentication: Bearer token (COURIER role, assigned to order)
+Path Parameters:
+  - id: Order UUID
+Request Body:
+  {
+    "delivery_time": "2025-12-19T11:00:00.000Z",  // Optional, defaults to now
+    "recipient_name": "Jane Doe",                 // Optional: who received
+    "signature": "base64_signature_image",        // Optional: delivery proof
+    "photo": "base64_photo",                      // Optional: delivery proof
+    "notes": "Delivered successfully"             // Optional
+  }
+Response 200:
+  {
+    "message": "Order marked as delivered",
+    "order": { /* updated order */ }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden (not assigned courier)
+  - 400: Order not in PICKED_UP status
+Events Published:
+  - order.status_updated (status: DELIVERED)
+  - order.delivered
+
+--------------------------------------------------------------------------------
+3.4 ORDER TRACKING
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /orders/:id/tracking
+Description: Get real-time tracking information
+Authentication: Bearer token (order owner, assigned courier, or admin)
+Path Parameters:
+  - id: Order UUID
+Response 200:
+  {
+    "order_id": "uuid",
+    "status": "PICKED_UP",
+    "current_location": {
+      "latitude": 9.0200,
+      "longitude": 38.7500,
+      "address": "Near Meskel Square",
+      "updated_at": "2025-12-19T10:30:00.000Z"
+    },
+    "courier": {
+      "courier_id": "uuid",
+      "name": "Mike Driver",
+      "phone": "+251933333333",
+      "vehicle_type": "MOTORCYCLE",
+      "license_plate": "AA-12345"
+    },
+    "estimated_delivery": "2025-12-19T11:00:00.000Z",
+    "timeline": [
+      {
+        "status": "PENDING",
+        "timestamp": "2025-12-19T09:40:00.000Z",
+        "location": "Bole, Addis Ababa"
+      },
+      {
+        "status": "ASSIGNED",
+        "timestamp": "2025-12-19T09:45:00.000Z",
+        "courier_id": "uuid"
+      },
+      {
+        "status": "PICKED_UP",
+        "timestamp": "2025-12-19T10:00:00.000Z",
+        "location": "Bole, Addis Ababa"
+      }
+    ]
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden
+  - 404: Order not found
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /orders/:id/location-history
+Description: Get courier's location history for order
+Authentication: Bearer token (order owner or admin)
+Path Parameters:
+  - id: Order UUID
+Response 200:
+  {
+    "order_id": "uuid",
+    "locations": [
+      {
+        "latitude": 9.0320,
+        "longitude": 38.7469,
+        "timestamp": "2025-12-19T10:00:00.000Z"
+      },
+      {
+        "latitude": 9.0250,
+        "longitude": 38.7500,
+        "timestamp": "2025-12-19T10:15:00.000Z"
+      }
+    ]
+  }
+
+================================================================================
+4. PAYMENT SERVICE APIs
+================================================================================
+Base URL: http://localhost:3003
+
+--------------------------------------------------------------------------------
+4.1 PAYMENT PROCESSING
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] POST /payments/pay
+Description: Process payment for order
+Authentication: None (should be added)
+Request Body:
+  {
+    "orderId": "uuid",
+    "amount": 150.00
+  }
+Payment Flow:
+  1. Validates payment record exists for order
+  2. Checks payment not already completed
+  3. Verifies amount matches expected amount
+  4. Generates mock transaction ID
+  5. Updates status to COMPLETED
+  6. Publishes payment.completed event
+Response 200:
+  {
+    "id": "uuid",
+    "order_id": "uuid",
+    "user_id": "uuid",
+    "amount": 150.00,
+    "status": "COMPLETED",
+    "transaction_id": "TXN-1734598800000",
+    "created_at": "2025-12-19T09:40:00.000Z",
+    "updated_at": "2025-12-19T09:45:00.000Z"
+  }
+Errors:
+  - 404: Payment record not found
+  - 400: Payment already completed
+  - 400: Incorrect amount
+  - 500: Server error
+Events Published:
+  - payment.completed
+
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /payments/initiate
+Description: Initiate payment (create payment record)
+Authentication: Bearer token
+Request Body:
+  {
+    "order_id": "uuid",
+    "payment_method": "TELEBIRR",  // TELEBIRR, MPESA, CARD, CASH
+    "amount": 150.00
+  }
+Response 201:
+  {
+    "payment_id": "uuid",
+    "order_id": "uuid",
+    "amount": 150.00,
+    "status": "PENDING",
+    "payment_url": "https://payment-gateway.com/pay/xxx",  // For online payments
+    "expires_at": "2025-12-19T10:00:00.000Z"
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /payments/:id/verify
+Description: Verify payment with payment gateway
+Authentication: Bearer token or webhook
+Path Parameters:
+  - id: Payment UUID
+Request Body:
+  {
+    "transaction_id": "external_txn_id",
+    "gateway_response": { /* gateway data */ }
+  }
+Response 200:
+  {
+    "payment_id": "uuid",
+    "status": "COMPLETED",
+    "verified": true
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /payments/:id/refund
+Description: Refund payment
+Authentication: Bearer token (ADMIN role)
+Path Parameters:
+  - id: Payment UUID
+Request Body:
+  {
+    "reason": "Order cancelled",
+    "amount": 150.00  // Optional: partial refund
+  }
+Response 200:
+  {
+    "message": "Refund processed successfully",
+    "refund": {
+      "refund_id": "uuid",
+      "payment_id": "uuid",
+      "amount": 150.00,
+      "status": "COMPLETED"
+    }
+  }
+Events Published:
+  - payment.refunded
+
+--------------------------------------------------------------------------------
+4.2 PAYMENT STATUS
+--------------------------------------------------------------------------------
+
+[IMPLEMENTED] GET /payments/:orderId
+Description: Get payment status by order ID
+Authentication: None (should be added)
+Path Parameters:
+  - orderId: Order UUID
+Response 200:
+  {
+    "id": "uuid",
+    "order_id": "uuid",
+    "user_id": "uuid",
+    "amount": 150.00,
+    "status": "COMPLETED",
+    "transaction_id": "TXN-1734598800000",
+    "created_at": "2025-12-19T09:40:00.000Z",
+    "updated_at": "2025-12-19T09:45:00.000Z"
+  }
+Errors:
+  - 404: Payment not found
+  - 500: Server error
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /payments/my-payments
+Description: Get user's payment history
+Authentication: Bearer token
+Query Parameters:
+  - status: Filter by status
+  - page: Page number
+  - limit: Items per page
+Response 200:
+  {
+    "payments": [ /* array of payments */ ],
+    "pagination": { /* pagination info */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /payments
+Description: Get all payments (admin only)
+Authentication: Bearer token (ADMIN role)
+Query Parameters:
+  - status: Filter by status
+  - user_id: Filter by user
+  - from_date: Start date
+  - to_date: End date
+  - page: Page number
+  - limit: Items per page
+Response 200:
+  {
+    "payments": [ /* array of payments */ ],
+    "statistics": {
+      "total_amount": 50000.00,
+      "completed_count": 250,
+      "pending_count": 15,
+      "failed_count": 5
+    },
+    "pagination": { /* pagination info */ }
+  }
+
+================================================================================
+5. NOTIFICATION SERVICE APIs
+================================================================================
+Base URL: http://localhost:3004 (if HTTP endpoints added)
+
+Note: Currently, notification service is a pure event consumer with no HTTP
+endpoints. The following are recommended additions:
+
+--------------------------------------------------------------------------------
+5.1 NOTIFICATION RETRIEVAL
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /notifications/my-notifications
+Description: Get user's notifications
+Authentication: Bearer token
+Query Parameters:
+  - type: Filter by type (order_update, payment, system)
+  - is_read: Filter by read status
+  - page: Page number
+  - limit: Items per page
+Response 200:
+  {
+    "notifications": [
+      {
+        "notification_id": "uuid",
+        "user_id": "uuid",
+        "type": "order_update",
+        "title": "Order Delivered",
+        "message": "Your order #12345 has been delivered",
+        "data": {
+          "order_id": "uuid",
+          "status": "DELIVERED"
+        },
+        "is_read": false,
+        "created_at": "2025-12-19T11:00:00.000Z"
+      }
+    ],
+    "unread_count": 5,
+    "pagination": { /* pagination info */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] PATCH /notifications/:id/read
+Description: Mark notification as read
+Authentication: Bearer token
+Path Parameters:
+  - id: Notification UUID
+Response 200:
+  {
+    "message": "Notification marked as read"
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /notifications/read-all
+Description: Mark all notifications as read
+Authentication: Bearer token
+Response 200:
+  {
+    "message": "All notifications marked as read",
+    "count": 5
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] DELETE /notifications/:id
+Description: Delete notification
+Authentication: Bearer token
+Path Parameters:
+  - id: Notification UUID
+Response 200:
+  {
+    "message": "Notification deleted"
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /notifications/preferences
+Description: Get notification preferences
+Authentication: Bearer token
+Response 200:
+  {
+    "email_enabled": true,
+    "sms_enabled": true,
+    "push_enabled": true,
+    "notification_types": {
+      "order_updates": true,
+      "payment_updates": true,
+      "promotional": false
+    }
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] PUT /notifications/preferences
+Description: Update notification preferences
+Authentication: Bearer token
+Request Body:
+  {
+    "email_enabled": true,
+    "sms_enabled": false,
+    "push_enabled": true,
+    "notification_types": {
+      "order_updates": true,
+      "payment_updates": true,
+      "promotional": false
+    }
+  }
+Response 200:
+  {
+    "message": "Preferences updated successfully"
+  }
+
+================================================================================
+6. TRACKING SERVICE APIs
+================================================================================
+
+Note: Tracking functionality is currently part of Order Service. These could
+be separated into a dedicated Tracking Service.
+
+--------------------------------------------------------------------------------
+6.1 REAL-TIME TRACKING
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /tracking/:orderId
+Description: Get real-time tracking information
+Authentication: Bearer token or public tracking code
+Path Parameters:
+  - orderId: Order UUID
+Query Parameters:
+  - tracking_code: Public tracking code (alternative to auth)
+Response 200:
+  {
+    "order_id": "uuid",
+    "tracking_code": "TRK-ABC123",
+    "status": "PICKED_UP",
+    "current_location": {
+      "latitude": 9.0200,
+      "longitude": 38.7500,
+      "address": "Near Meskel Square",
+      "updated_at": "2025-12-19T10:30:00.000Z"
+    },
+    "estimated_delivery": "2025-12-19T11:00:00.000Z",
+    "timeline": [ /* status history */ ]
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] WebSocket: /tracking/live/:orderId
+Description: Real-time location updates via WebSocket
+Authentication: Bearer token or tracking code
+Events:
+  - location_update: Courier location changed
+  - status_update: Order status changed
+  - eta_update: Estimated delivery time updated
+Message Format:
+  {
+    "event": "location_update",
+    "data": {
+      "latitude": 9.0200,
+      "longitude": 38.7500,
+      "timestamp": "2025-12-19T10:30:00.000Z"
+    }
+  }
+
+================================================================================
+7. RATING & REVIEW APIs
+================================================================================
+
+These endpoints should be added to User Service or a separate Rating Service.
+
+--------------------------------------------------------------------------------
+7.1 COURIER RATINGS
+--------------------------------------------------------------------------------
+
+[FUTURE] POST /ratings/courier
+Description: Rate a courier after delivery
+Authentication: Bearer token (CUSTOMER role)
+Request Body:
+  {
+    "order_id": "uuid",
+    "courier_id": "uuid",
+    "rating": 5,                    // 1-5
+    "review_text": "Excellent service, very professional!"  // Optional
+  }
+Response 201:
+  {
+    "message": "Rating submitted successfully",
+    "rating": {
+      "rating_id": "uuid",
+      "courier_profile_id": "uuid",
+      "customer_id": "uuid",
+      "order_reference_id": "uuid",
+      "rating": 5,
+      "review_text": "Excellent service!",
+      "created_at": "2025-12-19T12:00:00.000Z"
+    }
+  }
+Errors:
+  - 401: Unauthorized
+  - 403: Forbidden (not order customer)
+  - 400: Order not delivered or already rated
+  - 404: Order or courier not found
+
+--------------------------------------------------------------------------------
+
+[FUTURE] GET /ratings/courier/:courierId
+Description: Get courier's ratings and reviews
+Authentication: None (public)
+Path Parameters:
+  - courierId: Courier UUID
+Query Parameters:
+  - page: Page number
+  - limit: Items per page
+Response 200:
+  {
+    "courier_id": "uuid",
+    "average_rating": "4.85",
+    "total_ratings": 98,
+    "rating_distribution": {
+      "5": 85,
+      "4": 10,
+      "3": 2,
+      "2": 1,
+      "1": 0
+    },
+    "reviews": [
+      {
+        "rating_id": "uuid",
+        "rating": 5,
+        "review_text": "Excellent service!",
+        "customer_name": "John D.",  // Anonymized
+        "created_at": "2025-12-19T12:00:00.000Z"
+      }
+    ],
+    "pagination": { /* pagination info */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] PUT /ratings/:ratingId
+Description: Update rating/review
+Authentication: Bearer token (original reviewer)
+Path Parameters:
+  - ratingId: Rating UUID
+Request Body:
+  {
+    "rating": 4,
+    "review_text": "Updated review text"
+  }
+Response 200:
+  {
+    "message": "Rating updated successfully",
+    "rating": { /* updated rating */ }
+  }
+
+--------------------------------------------------------------------------------
+
+[FUTURE] DELETE /ratings/:ratingId
+Description: Delete rating/review
+Authentication: Bearer token (original reviewer or admin)
+Path Parameters:
+  - ratingId: Rating UUID
+Response 200:
+  {
+    "message": "Rating deleted successfully"
+  }
+
+================================================================================
+8. COMMON PATTERNS
+================================================================================
+
+--------------------------------------------------------------------------------
+8.1 REQUEST HEADERS
+--------------------------------------------------------------------------------
+
+Standard Headers:
+  Content-Type: application/json
+  Authorization: Bearer <access_token>
+  Accept: application/json
+
+Optional Headers:
+  X-Request-ID: <uuid>              // For request tracing
+  X-Client-Version: 1.0.0           // Client app version
+  Accept-Language: en-US            // Localization
+
+--------------------------------------------------------------------------------
+8.2 PAGINATION
+--------------------------------------------------------------------------------
+
+Query Parameters:
+  - page: Page number (default: 1)
+  - limit: Items per page (default: 20, max: 100)
+
+Response Format:
+  {
+    "data": [ /* array of items */ ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 150,
+      "totalPages": 8,
+      "hasNext": true,
+      "hasPrev": false
+    }
+  }
+
+--------------------------------------------------------------------------------
+8.3 FILTERING & SORTING
+--------------------------------------------------------------------------------
+
+Common Query Parameters:
+  - sort: Field to sort by (e.g., created_at, price)
+  - order: Sort order (asc, desc)
+  - search: Text search query
+  - from_date: Start date filter (ISO 8601)
+  - to_date: End date filter (ISO 8601)
+
+Example:
+  GET /orders?status=PENDING&sort=created_at&order=desc&page=1&limit=20
+
+--------------------------------------------------------------------------------
+8.4 RESPONSE FORMATS
+--------------------------------------------------------------------------------
+
+Success Response (Single Resource):
+  {
+    "message": "Operation successful",
+    "data": { /* resource object */ }
+  }
+
+Success Response (Collection):
+  {
+    "data": [ /* array of resources */ ],
+    "pagination": { /* pagination info */ }
+  }
+
+Error Response:
+  {
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Validation failed",
+      "details": [
+        {
+          "field": "email",
+          "message": "Invalid email format"
+        }
+      ]
+    }
+  }
+
+================================================================================
+9. ERROR RESPONSES
+================================================================================
+
+--------------------------------------------------------------------------------
+9.1 HTTP STATUS CODES
+--------------------------------------------------------------------------------
+
+Success Codes:
+  200 OK                - Successful GET, PUT, PATCH, DELETE
+  201 Created           - Successful POST (resource created)
+  204 No Content        - Successful DELETE (no response body)
+
+Client Error Codes:
+  400 Bad Request       - Validation errors, invalid data
+  401 Unauthorized      - Missing or invalid authentication
+  403 Forbidden         - Insufficient permissions
+  404 Not Found         - Resource not found
+  409 Conflict          - Resource conflict (e.g., duplicate)
+  422 Unprocessable     - Semantic errors
+  429 Too Many Requests - Rate limit exceeded
+
+Server Error Codes:
+  500 Internal Server Error - Unexpected server error
+  502 Bad Gateway           - Upstream service error
+  503 Service Unavailable   - Service temporarily down
+  504 Gateway Timeout       - Upstream service timeout
+
+--------------------------------------------------------------------------------
+9.2 ERROR CODES
+--------------------------------------------------------------------------------
+
+Authentication Errors:
+  - AUTH_TOKEN_MISSING
+  - AUTH_TOKEN_INVALID
+  - AUTH_TOKEN_EXPIRED
+  - AUTH_CREDENTIALS_INVALID
+
+Authorization Errors:
+  - AUTH_INSUFFICIENT_PERMISSIONS
+  - AUTH_ROLE_REQUIRED
+
+Validation Errors:
+  - VALIDATION_ERROR
+  - VALIDATION_FIELD_REQUIRED
+  - VALIDATION_FIELD_INVALID
+  - VALIDATION_FIELD_TOO_LONG
+  - VALIDATION_FIELD_TOO_SHORT
+
+Resource Errors:
+  - RESOURCE_NOT_FOUND
+  - RESOURCE_ALREADY_EXISTS
+  - RESOURCE_CONFLICT
+
+Business Logic Errors:
+  - ORDER_ALREADY_ASSIGNED
+  - ORDER_CANNOT_CANCEL
+  - PAYMENT_ALREADY_COMPLETED
+  - COURIER_UNAVAILABLE
+
+System Errors:
+  - INTERNAL_SERVER_ERROR
+  - DATABASE_ERROR
+  - EXTERNAL_SERVICE_ERROR
+
+--------------------------------------------------------------------------------
+9.3 ERROR RESPONSE EXAMPLES
+--------------------------------------------------------------------------------
+
+Validation Error (400):
+  {
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Validation failed",
+      "details": [
+        {
+          "field": "email",
+          "message": "Please provide a valid email",
+          "value": "invalid-email"
+        },
+        {
+          "field": "password",
+          "message": "Password must be at least 6 characters",
+          "value": null
+        }
+      ]
+    }
+  }
+
+Authentication Error (401):
+  {
+    "error": {
+      "code": "AUTH_TOKEN_INVALID",
+      "message": "Invalid or expired token"
+    }
+  }
+
+Authorization Error (403):
+  {
+    "error": {
+      "code": "AUTH_INSUFFICIENT_PERMISSIONS",
+      "message": "Access denied: Insufficient permissions"
+    }
+  }
+
+Not Found Error (404):
+  {
+    "error": {
+      "code": "RESOURCE_NOT_FOUND",
+      "message": "Order not found",
+      "resource": "Order",
+      "id": "uuid"
+    }
+  }
+
+Business Logic Error (400):
+  {
+    "error": {
+      "code": "ORDER_ALREADY_ASSIGNED",
+      "message": "Order is already assigned to a courier"
+    }
+  }
+
+================================================================================
+10. EVENT CONTRACTS
+================================================================================
+
+All services communicate asynchronously via RabbitMQ using topic exchange.
+
+Exchange: delivery_exchange
+Type: topic
+
+--------------------------------------------------------------------------------
+10.1 USER SERVICE EVENTS
+--------------------------------------------------------------------------------
+
+Event: user.created
+Routing Key: user.created
+Published When: New user registers
+Payload:
+  {
+    "user_id": "uuid",
+    "email": "user@example.com",
+    "role": "CUSTOMER",
+    "first_name": "John",
+    "timestamp": "2025-12-19T09:00:00.000Z"
+  }
+Consumers:
+  - Notification Service: Send welcome email/SMS
+
+--------------------------------------------------------------------------------
+
+Event: user.updated
+Routing Key: user.updated
+Published When: User profile updated
+Payload:
+  {
+    "user_id": "uuid",
+    "email": "user@example.com",
+    "role": "CUSTOMER",
+    "timestamp": "2025-12-19T09:10:00.000Z"
+  }
+Consumers:
+  - Order Service: Update cached user data
+  - Notification Service: Notify user of changes
+
+--------------------------------------------------------------------------------
+
+Event: user.deleted
+Routing Key: user.deleted
+Published When: User account deleted
+Payload:
+  {
+    "user_id": "uuid",
+    "timestamp": "2025-12-19T09:15:00.000Z"
+  }
+Consumers:
+  - Order Service: Cancel pending orders
+  - Payment Service: Process refunds
+
+--------------------------------------------------------------------------------
+
+Event: courier.status_changed
+Routing Key: courier.status_changed
+Published When: Courier availability changes
+Payload:
+  {
+    "user_id": "uuid",
+    "status": "AVAILABLE",
+    "timestamp": "2025-12-19T09:20:00.000Z"
+  }
+Consumers:
+  - Order Service: Trigger auto-assignment if available
+
+--------------------------------------------------------------------------------
+
+Event: courier.location_updated
+Routing Key: courier.location_updated
+Published When: Courier location updated
+Payload:
+  {
+    "user_id": "uuid",
+    "latitude": 9.0320,
+    "longitude": 38.7469,
+    "timestamp": "2025-12-19T09:25:00.000Z"
+  }
+Consumers:
+  - Tracking Service: Update real-time tracking
+  - Order Service: Update ETA calculations
+
+--------------------------------------------------------------------------------
+10.2 ORDER SERVICE EVENTS
+--------------------------------------------------------------------------------
+
+Event: package.created (order.created)
+Routing Key: package.created
+Published When: New order created
+Payload:
+  {
+    "orderId": "uuid",
+    "userId": "uuid",
+    "pickup": {
+      "lat": 9.0320,
+      "lng": 38.7469,
+      "address": "Bole, Addis Ababa"
+    },
+    "dropoff": {
+      "lat": 9.0054,
+      "lng": 38.7636,
+      "address": "Megenagna, Addis Ababa"
+    },
+    "price": 150.00,
+    "timestamp": "2025-12-19T09:40:00.000Z"
+  }
+Consumers:
+  - Payment Service: Create payment record
+  - Notification Service: Send order confirmation
+
+--------------------------------------------------------------------------------
+
+Event: order.assigned
+Routing Key: order.assigned
+Published When: Courier assigned to order
+Payload:
+  {
+    "orderId": "uuid",
+    "courierId": "uuid",
+    "timestamp": "2025-12-19T09:45:00.000Z"
+  }
+Consumers:
+  - Notification Service: Notify customer and courier
+  - User Service: Update courier status to BUSY
+
+--------------------------------------------------------------------------------
+
+Event: order.status_updated
+Routing Key: order.status_updated
+Published When: Order status changes
+Payload:
+  {
+    "orderId": "uuid",
+    "status": "PICKED_UP",
+    "previousStatus": "ASSIGNED",
+    "location": "Bole, Addis Ababa",
+    "timestamp": "2025-12-19T10:00:00.000Z"
+  }
+Consumers:
+  - Notification Service: Send status update to customer
+  - Tracking Service: Update tracking timeline
+
+--------------------------------------------------------------------------------
+
+Event: order.delivered
+Routing Key: order.delivered
+Published When: Order marked as delivered
+Payload:
+  {
+    "orderId": "uuid",
+    "courierId": "uuid",
+    "deliveryTime": "2025-12-19T11:00:00.000Z",
+    "timestamp": "2025-12-19T11:00:00.000Z"
+  }
+Consumers:
+  - Notification Service: Send delivery confirmation
+  - User Service: Update courier stats, set status to AVAILABLE
+  - Rating Service: Prompt customer to rate courier
+
+--------------------------------------------------------------------------------
+
+Event: order.cancelled
+Routing Key: order.cancelled
+Published When: Order cancelled
+Payload:
+  {
+    "orderId": "uuid",
+    "reason": "Customer request",
+    "timestamp": "2025-12-19T09:50:00.000Z"
+  }
+Consumers:
+  - Payment Service: Process refund if paid
+  - Notification Service: Send cancellation notification
+  - User Service: Free up courier if assigned
+
+--------------------------------------------------------------------------------
+10.3 PAYMENT SERVICE EVENTS
+--------------------------------------------------------------------------------
+
+Event: payment.completed
+Routing Key: payment.completed
+Published When: Payment successfully processed
+Payload:
+  {
+    "paymentId": "uuid",
+    "orderId": "uuid",
+    "transactionId": "TXN-1734598800000",
+    "amount": 150.00,
+    "timestamp": "2025-12-19T09:45:00.000Z"
+  }
+Consumers:
+  - Order Service: Update order status, enable courier assignment
+  - Notification Service: Send payment confirmation
+
+--------------------------------------------------------------------------------
+
+Event: payment.failed
+Routing Key: payment.failed
+Published When: Payment processing fails
+Payload:
+  {
+    "paymentId": "uuid",
+    "orderId": "uuid",
+    "reason": "Insufficient funds",
+    "timestamp": "2025-12-19T09:45:00.000Z"
+  }
+Consumers:
+  - Order Service: Mark order as payment failed
+  - Notification Service: Send payment failure notification
+
+--------------------------------------------------------------------------------
+
+Event: payment.refunded
+Routing Key: payment.refunded
+Published When: Payment refunded
+Payload:
+  {
+    "paymentId": "uuid",
+    "orderId": "uuid",
+    "refundAmount": 150.00,
+    "reason": "Order cancelled",
+    "timestamp": "2025-12-19T10:00:00.000Z"
+  }
+Consumers:
+  - Notification Service: Send refund confirmation
+
+================================================================================
+APPENDIX A: IMPLEMENTATION PRIORITY
+================================================================================
+
+Phase 1 (MVP - Core Functionality):
+  [IMPLEMENTED] User registration and login
+  [IMPLEMENTED] User profile management
+  [IMPLEMENTED] Customer addresses
+  [IMPLEMENTED] Courier profile and status
+  [IMPLEMENTED] Order creation
+  [IMPLEMENTED] Get my orders
+  [IMPLEMENTED] Payment processing
+  [NEEDED] Token refresh and logout
+  [NEEDED] Order status updates
+  [NEEDED] Courier assignment
+
+Phase 2 (Enhanced Functionality):
+  [NEEDED] Admin user management
+  [NEEDED] Order cancellation
+  [NEEDED] Courier auto-assignment
+  [NEEDED] Real-time tracking
+  [FUTURE] Notification retrieval endpoints
+  [FUTURE] Rating and reviews
+
+Phase 3 (Advanced Features):
+  [FUTURE] Password reset
+  [FUTURE] Email verification
+  [FUTURE] Payment gateway integration
+  [FUTURE] Refund processing
+  [FUTURE] WebSocket real-time tracking
+  [FUTURE] Courier earnings
+  [FUTURE] Advanced analytics
+
+================================================================================
+APPENDIX B: SECURITY CONSIDERATIONS
+================================================================================
+
+1. Authentication:
+   - Implement refresh token rotation
+   - Store token hashes, not plaintext
+   - Short access token expiry (15-30 min)
+   - Implement token blacklist for logout
+
+2. Authorization:
+   - Verify resource ownership (user can only access own orders)
+   - Role-based access control for admin endpoints
+   - Courier can only update assigned orders
+
+3. Input Validation:
+   - Validate all inputs on server side
+   - Sanitize user inputs to prevent injection
+   - Use Zod/express-validator for schema validation
+
+4. Rate Limiting:
+   - Auth endpoints: 5 requests/minute
+   - General API: 100 requests/minute
+   - Location updates: 60 requests/minute
+
+5. Data Protection:
+   - Hash passwords with bcrypt (salt rounds: 10+)
+   - Encrypt sensitive PII fields
+   - HTTPS only in production
+   - Secure headers (Helmet.js)
+
+6. API Security:
+   - CORS configuration (whitelist origins)
+   - Request size limits
+   - SQL injection prevention (Prisma parameterized queries)
+   - XSS prevention (sanitize outputs)
+
+================================================================================
+APPENDIX C: TESTING GUIDELINES
+================================================================================
+
+1. Unit Tests:
+   - Controllers: Mock database and services
+   - Services: Test business logic
+   - Validators: Test validation rules
+
+2. Integration Tests:
+   - API endpoints: Test request/response
+   - Database: Test CRUD operations
+   - Events: Test event publishing/consuming
+
+3. End-to-End Tests:
+   - Complete user flows (register -> order -> payment -> delivery)
+   - Multi-service interactions
+   - Event-driven workflows
+
+4. Load Tests:
+   - Concurrent users
+   - Order creation throughput
+   - Real-time location updates
+
+================================================================================
+END OF DOCUMENT
+================================================================================

@@ -25,7 +25,7 @@ async function verifyAll() {
     // Register
     console.log(`1. Registering Customer (${customerUser.email})...`);
     await axios.post(`${API_URL}/auth/register`, customerUser);
-    console.log('✅ Registration Successful');
+    console.log(' Registration Successful');
 
     // Login
     console.log('2. Logging in...');
@@ -34,7 +34,7 @@ async function verifyAll() {
       password: customerUser.password
     });
     const customerToken = loginRes.data.token;
-    console.log('✅ Login Successful');
+    console.log(' Login Successful');
 
     // Add Address
     console.log('3. Adding Address...');
@@ -45,7 +45,7 @@ async function verifyAll() {
         kebele: '03',
         house_number: '123'
     }, { headers: { Authorization: `Bearer ${customerToken}` } });
-    console.log('✅ Address Added');
+    console.log('Address Added');
 
     // Get Profile
     console.log('4. Fetching Profile...');
@@ -53,10 +53,10 @@ async function verifyAll() {
         headers: { Authorization: `Bearer ${customerToken}` }
     });
     // console.log('Profile:', profileRes.data);
-    console.log('✅ Profile Fetched (with addresses)');
+    console.log('Profile Fetched (with addresses)');
 
   } catch (err: any) {
-    console.error('❌ Customer Flow Failed:', err.response?.data || err.message);
+    console.error('Customer Flow Failed:', err.response?.data || err.message);
   }
 
   // ==========================================
