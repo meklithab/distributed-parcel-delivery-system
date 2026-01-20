@@ -1,4 +1,3 @@
-
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -7,7 +6,6 @@ import morgan from 'morgan';
 import { rabbitMQ } from './config/rabbitmq';
 import { startOrderConsumer } from './events/consumers/order.consumer';
 import paymentRoutes from './routes/payment.routes';
-import chappaRoutes from './routes/chappa.routes'
 
 dotenv.config();
 
@@ -19,25 +17,36 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 
-
 // Routes
 app.use('/api/payments', paymentRoutes);
-app.use("/api/chapa", chappaRoutes);
 
-
-
+// Health check
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'success',
     service: 'payment-service',
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
-app.listen(PORT, async () => {
-  console.log(`\n🚀 Payment Service running on http://localhost:${PORT}`);
-  
-  // Connect to RabbitMQ and start consumers
-  await rabbitMQ.connect();
-  await startOrderConsumer();
-});
+// 🔴 BOOTSTRAP FUNCTION WITH RETRY LOGIC
+const start = async () => {
+  try {
+    console.log('🔌 Connecting to RabbitMQ...');
+    await rabbitMQ.connect();
+
+    console.log('📡 Starting payment consumers...');
+    await startOrderConsumer();
+
+    app.listen(PORT, () => {
+      console.log(`\n🚀 Payment Service running on http://localhost:${PORT}`);
+    });
+
+  } catch (error) {
+    console.error('❌ Failed to start payment service:', error);
+    console.log('⏳ Retrying in 5 seconds...');
+    setTimeout(start, 5000); // Retry after 5 seconds if RabbitMQ not ready
+  }
+};
+
+start();

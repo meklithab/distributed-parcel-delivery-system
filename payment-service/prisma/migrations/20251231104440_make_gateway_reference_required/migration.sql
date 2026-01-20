@@ -24,7 +24,7 @@ CREATE TABLE "Payment" (
     "payment_method" "PaymentMethod" NOT NULL,
     "payment_gateway" VARCHAR(50),
     "gateway_transaction_id" VARCHAR(255),
-    "gateway_reference" VARCHAR(255),
+    "gateway_reference" VARCHAR(255) NOT NULL,
     "amount" DECIMAL(15,2) NOT NULL,
     "currency_code" CHAR(3) NOT NULL DEFAULT 'ETB',
     "status" "PaymentStatus" NOT NULL,

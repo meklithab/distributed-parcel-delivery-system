@@ -3,6 +3,7 @@ FROM node:20-slim
 # Install dependencies for Prisma
 RUN apt-get update && apt-get install -y \
     openssl \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -24,4 +25,4 @@ COPY . .
 EXPOSE 3003
 
 # Run migrations and then the application
-CMD ["sh", "-c", "npx prisma db push && npm run dev"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm run dev"]

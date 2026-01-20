@@ -236,5 +236,16 @@ model GatewayLog {
   error_message String?
   created_at    DateTime @default(now()) @map("created_at")
 
-  payment Payment? @relation(fields: [payment_id], references: [payment_id])
+
+//////////////////////////////////////////////////
+// IDEMPOTENCY
+//////////////////////////////////////////////////
+
+model ProcessedEvent {
+  eventId    String   @id
+  eventType  String
+  service    String
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@index([eventId])
 }
