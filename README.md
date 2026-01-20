@@ -24,21 +24,37 @@ Parcel delivery platforms require several independent backend components to work
 ---
 
 ## Objectives
-- Implement three independent microservices: **Package Service**, **User Service**, and **Notification Service**.
-- Use **REST** for synchronous operations (e.g., package creation, tracking queries).
-- Use **Kafka/RabbitMQ/Redis Streams** for asynchronous events.
-- Deploy all services with **Docker Compose**.
-- Produce professional documentation including **API specs**, **event schemas**, and **system architecture**.
+- Implement four independent microservices: User Service, Order Service, Payment Service, and Notification Service.
+- Use REST APIs for synchronous operations such as user management, order creation, and payment initiation.
+- Use asynchronous messaging (RabbitMQ) for event-driven communication between services.
+- Ensure loose coupling between services through message-based integration.
+- Deploy all services and supporting infrastructure using Docker Compose.
+- Provide clear documentation including API contracts, event flows, and service responsibilities.
 
 ---
 
 ## Proposed Architecture
 The system consists of three independent microservices:
 
-1. **Package Service**: Registers customer shipment requests and publishes `package.created` events.
-2. **User Service**: Manages customer and courier information, subscribes to package.created events to validate sender/receiver IDs, and publishes user.updated events when user or courier data changes.
-3. **Notification Service**: Subscribes to status updates and notifies customers in real time.
+1. **User Service**
+- Manages customer and courier accounts.
+- Handles user registration, authentication, and profile management.
+- Publishes events such as user.created and user.updated.
 
+2. **Order Service**
+- Manages parcel orders, addresses, parcels, and tracking events.
+- Creates and updates delivery orders.
+- Publishes domain events such as order.created, order.status.updated, and parcel.created.
+
+3. **Payment Service**
+- Handles payment initiation and verification (e.g., Chapa integration).
+- Listens to order.created events to prepare payment records.
+- Publishes payment.initiated, payment.completed, and payment.failed events.
+
+4. **Notification Service**
+
+- Subscribes to events from Order and Payment services.
+- Ensures customers receive real-time updates throughout the delivery lifecycle.
 
 ---
 
