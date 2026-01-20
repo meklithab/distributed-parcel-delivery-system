@@ -5,6 +5,19 @@ import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { rabbitMQ } from '../config/rabbitmq';
 
+// Helper to calculate distance in KM using Haversine formula
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Earth radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+};
+
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as AuthRequest).user?.userId;
@@ -15,9 +28,15 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       package_type, weight
     } = req.body;
 
-    // Calculate price (mock logic)
-    const distanceInfo = Math.sqrt(Math.pow(dropoff_lat - pickup_lat, 2) + Math.pow(dropoff_lng - pickup_lng, 2));
-    const price = Math.max(50, Math.round(distanceInfo * 1000)); // Minimum 50 ETB
+    // 1. Calculate Distance-Based Price
+    const distance = calculateDistance(pickup_lat, pickup_lng, dropoff_lat, dropoff_lng);
+    const basePrice = 50; 
+    const pricePerKm = 15;
+    const price = Math.round(basePrice + (distance * pricePerKm));
+
+    // 2. Set Expiry (30 minutes from now)
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 30);
 
     const order = await prisma.order.create({
       data: {
@@ -27,6 +46,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         receiver_name, receiver_phone,
         package_type, weight,
         price,
+        expires_at: expiresAt,
         status: 'PENDING'
       }
     });
@@ -37,7 +57,8 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
       userId,
       pickup: { lat: pickup_lat, lng: pickup_lng },
       dropoff: { lat: dropoff_lat, lng: dropoff_lng },
-      price
+      price,
+      expires_at: expiresAt
     });
 
     res.status(201).json(order);
@@ -77,11 +98,44 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
 
 export const getAvailableOrders = async (req: Request, res: Response): Promise<void> => {
     try {
+        const now = new Date();
         const orders = await prisma.order.findMany({
-            where: { status: 'PENDING' },
+            where: { 
+                status: 'PENDING',
+                OR: [
+                    { expires_at: null },
+                    { expires_at: { gt: now } }
+                ]
+            },
             orderBy: { created_at: 'asc' }
         });
         res.json(orders);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+export const updateCourierLocation = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { lat, lng } = req.body;
+        const courierId = (req as AuthRequest).user?.userId;
+
+        const order = await prisma.order.findUnique({ where: { id } });
+        if (!order || order.courier_id !== courierId) {
+            res.status(403).json({ message: 'Unauthorized or order not found' });
+            return;
+        }
+
+        await prisma.order.update({
+            where: { id },
+            data: { 
+                courier_lat: lat,
+                courier_lng: lng
+            }
+        });
+
+        res.json({ message: 'Location updated' });
     } catch (error) {
         res.status(500).json({ message: 'Server error' });
     }

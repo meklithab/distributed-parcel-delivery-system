@@ -2,7 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { ORDERS_API, PAYMENTS_API } from '../lib/axios';
-import { Package, Truck, LogOut } from 'lucide-react';
+import { Package, Truck, LogOut, Map as MapIcon } from 'lucide-react';
+import TrackingMap from '../components/TrackingMap';
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
@@ -11,6 +12,7 @@ export default function DashboardPage() {
     pickup_address: '', dropoff_address: '', receiver_name: '', price: 100
   });
   const [availableOrders, setAvailableOrders] = useState<any[]>([]);
+  const [trackingLocations, setTrackingLocations] = useState<Record<string, {lat: number, lng: number}>>({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -24,17 +26,25 @@ export default function DashboardPage() {
   const fetchOrders = async () => {
     try {
       if (user?.role === 'COURIER') {
-          // Fetch Assigned Orders (using my-orders which now filters by courier_id)
           const assignedRes = await api.get(`${ORDERS_API}/orders/my-orders`);
           setOrders(assignedRes.data);
-
-          // Fetch Available Orders
           const availableRes = await api.get(`${ORDERS_API}/orders/available`);
           setAvailableOrders(availableRes.data);
       } else {
           const res = await api.get(`${ORDERS_API}/orders/my-orders`);
-          // Attach payment status
           const ordersWithPayment = await Promise.all(res.data.map(async (o: any) => {
+             // Fetch latest courier location for tracking if picked up
+             if (o.status === 'PICKED_UP' && o.id) {
+                 try {
+                     const orderRes = await api.get(`${ORDERS_API}/orders/${o.id}`);
+                     if (orderRes.data.courier_lat) {
+                         setTrackingLocations(prev => ({
+                             ...prev,
+                             [o.id]: { lat: orderRes.data.courier_lat, lng: orderRes.data.courier_lng }
+                         }));
+                     }
+                 } catch(e) {}
+             }
              try {
                  const p = await api.get(`${PAYMENTS_API}/payments/${o.id}`);
                  return { ...o, paymentStatus: p.data.status, paymentId: p.data.id, amount: p.data.amount };
@@ -48,22 +58,45 @@ export default function DashboardPage() {
   useEffect(() => {
     if (user) {
         fetchOrders();
-        // For couriers, refresh available jobs every 10 seconds
+        const interval = setInterval(fetchOrders, 10000);
+
+        // Share location if courier has active pickups
+        let watchId: number;
         if (user.role === 'COURIER') {
-            const interval = setInterval(fetchOrders, 10000);
-            return () => clearInterval(interval);
+            watchId = window.navigator.geolocation.watchPosition(async (pos) => {
+                const activeOrder = orders.find(o => o.status === 'PICKED_UP');
+                if (activeOrder) {
+                    try {
+                        await api.patch(`${ORDERS_API}/orders/${activeOrder.id}/location`, {
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude
+                        });
+                    } catch(e) {}
+                }
+            });
         }
+
+        return () => {
+            clearInterval(interval);
+            if (watchId) window.navigator.geolocation.clearWatch(watchId);
+        };
     }
-  }, [user]);
+  }, [user, orders.length]); // Re-run if orders list changes to find active pickup
 
   const createOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Randomize coordinates slightly for demo to show price variation
+      const plat = 9.0 + (Math.random() * 0.1);
+      const plng = 38.0 + (Math.random() * 0.1);
+      const dlat = 9.0 + (Math.random() * 0.1);
+      const dlng = 38.0 + (Math.random() * 0.1);
+
       await api.post(`${ORDERS_API}/orders`, {
           ...newOrder,
-          pickup_lat: 9.0, pickup_lng: 38.0, 
-          dropoff_lat: 9.1, dropoff_lng: 38.1,
-          receiver_phone: '0911000000'
+          pickup_lat: plat, pickup_lng: plng, 
+          dropoff_lat: dlat, dropoff_lng: dlng,
+          receiver_phone: '09' + Math.floor(Math.random() * 100000000)
       });
       setNewOrder({ pickup_address: '', dropoff_address: '', receiver_name: '', price: 100 });
       setTimeout(fetchOrders, 1000); // Wait for rabbitmq
@@ -124,8 +157,9 @@ export default function DashboardPage() {
                             value={newOrder.dropoff_address} onChange={e=>setNewOrder({...newOrder, dropoff_address: e.target.value})} required />
                         <input placeholder="Receiver Name" className="w-full border p-2 rounded" 
                             value={newOrder.receiver_name} onChange={e=>setNewOrder({...newOrder, receiver_name: e.target.value})} required />
-                        <input type="number" placeholder="Price (ETB)" className="w-full border p-2 rounded" 
-                            value={newOrder.price} onChange={e=>setNewOrder({...newOrder, price: Number(e.target.value)})} required />
+                        <div className="bg-blue-50 p-2 rounded text-xs text-blue-700">
+                             Price is calculated based on distance (50 ETB + 15 ETB/KM)
+                        </div>
                         <button className="w-full bg-primary text-white p-2 rounded hover:bg-blue-700 transition-colors">
                             Create Order
                         </button>
@@ -180,6 +214,24 @@ export default function DashboardPage() {
                             </div>
                             <p className="text-sm text-gray-600">{order.pickup_address} ➝ <span className="font-medium">{order.dropoff_address}</span></p>
                             <p className="text-sm font-medium mt-1">Fee: {order.price} ETB</p>
+                            
+                            {user?.role === 'CUSTOMER' && order.status === 'PICKED_UP' && trackingLocations[order.id] && (
+                                <div className="mt-2 bg-green-50 p-2 rounded text-[11px] text-green-700 flex items-center gap-2">
+                                    <Truck size={12}/> Live Location: 
+                                    {trackingLocations[order.id].lat.toFixed(4)}, {trackingLocations[order.id].lng.toFixed(4)}
+                                </div>
+                            )}
+
+                            {order.status === 'PICKED_UP' && (
+                                <div className="mt-3">
+                                    <TrackingMap 
+                                        pickup={{ lat: order.pickup_lat, lng: order.pickup_lng }}
+                                        dropoff={{ lat: order.dropoff_lat, lng: order.dropoff_lng }}
+                                        courier={trackingLocations[order.id] || (order.courier_lat ? { lat: order.courier_lat, lng: order.courier_lng } : undefined)}
+                                    />
+                                </div>
+                            )}
+
                             {user?.role === 'COURIER' && (
                                 <div className="mt-2 pt-2 border-t border-gray-200">
                                     <p className="text-[11px] text-gray-500">CLIENT INFO</p>

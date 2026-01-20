@@ -25,4 +25,7 @@ router.patch('/:id/assign', OrderController.assignCourier);
 // Update order status
 router.patch('/:id/status', OrderController.updateOrderStatus);
 
+// Update courier location (tracking)
+router.patch('/:id/location', OrderController.updateCourierLocation);
+
 export default router;

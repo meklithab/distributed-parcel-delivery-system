@@ -38,6 +38,10 @@ model Order {
   price            Float
   
   courier_id       String?
+  courier_lat      Float?
+  courier_lng      Float?
+  
+  expires_at       DateTime?
   
   created_at       DateTime    @default(now())
   updated_at       DateTime    @updatedAt
