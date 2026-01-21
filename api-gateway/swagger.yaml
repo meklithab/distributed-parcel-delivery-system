@@ -172,13 +172,14 @@ components:
   schemas:
     RegisterRequest:
       type: object
-      required: [name, email, password, role]
+      required: [first_name, last_name, email, password, phone_number, user_role]
       properties:
-        name: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
         email: { type: string }
         password: { type: string }
-        phone: { type: string }
-        role: { type: string, enum: [CUSTOMER, COURIER] }
+        phone_number: { type: string }
+        user_role: { type: string, enum: [CUSTOMER, COURIER] }
 
     LoginRequest:
       type: object
