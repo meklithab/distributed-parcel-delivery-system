@@ -2,11 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
+import path from 'path';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8000;
+
+// Load Swagger document
+const swaggerDocument = YAML.load(path.join(process.cwd(), 'swagger.yaml'));
 
 app.use(cors());
 
@@ -37,6 +43,9 @@ app.use('/api/orders', createProxyMiddleware({ ...proxyOptions, target: ORDER_SE
 
 // Payment Service Routes
 app.use('/api/payments', createProxyMiddleware({ ...proxyOptions, target: PAYMENT_SERVICE_URL }));
+
+// Swagger Documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Health Check
 app.get('/health', (req, res) => {
