@@ -1,4 +1,4 @@
-import express from 'express'; // Documentation update: Swagger UI integrated
+import express from 'express'; // Documentation update: Swagger UI synced with real routes
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
