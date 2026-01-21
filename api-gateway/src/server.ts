@@ -1,4 +1,4 @@
-import express from 'express';
+import express from 'express'; // Documentation update: Swagger UI integrated
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -45,7 +45,7 @@ app.use('/api/orders', createProxyMiddleware({ ...proxyOptions, target: ORDER_SE
 app.use('/api/payments', createProxyMiddleware({ ...proxyOptions, target: PAYMENT_SERVICE_URL }));
 
 // Swagger Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -54,6 +54,7 @@ app.get('/health', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`🚀 API Gateway running on port ${PORT}`);
+    console.log(`📖 Swagger UI available at: http://localhost:${PORT}/api/docs`);
     console.log(`🔗 User Service: ${USER_SERVICE_URL}`);
     console.log(`🔗 Order Service: ${ORDER_SERVICE_URL}`);
     console.log(`🔗 Payment Service: ${PAYMENT_SERVICE_URL}`);
