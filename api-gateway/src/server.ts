@@ -1,51 +1,138 @@
+//api-gateway\src\server.ts
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import dotenv from 'dotenv';
+import { authMiddleware } from './middleware/auth';
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT =  8000;
 
 app.use(cors());
 
-// Service URLs from environment variables
-const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-app:3001';
-const ORDER_SERVICE_URL = process.env.ORDER_SERVICE_URL || 'http://order-app:3002';
-const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || 'http://payment-app:3003';
 
-// Proxy configuration
-const proxyOptions = {
-    changeOrigin: true,
-    logLevel: 'debug' as const,
-    onError: (err: any, req: any, res: any) => {
-        console.error('Proxy Error:', err);
-        res.status(500).send('Proxy Error');
-    }
-};
-
-// Route Definitions
-// User Service Routes
-app.use('/api/auth', createProxyMiddleware({ ...proxyOptions, target: USER_SERVICE_URL }));
-app.use('/api/users', createProxyMiddleware({ ...proxyOptions, target: USER_SERVICE_URL }));
-app.use('/api/customers', createProxyMiddleware({ ...proxyOptions, target: USER_SERVICE_URL }));
-app.use('/api/couriers', createProxyMiddleware({ ...proxyOptions, target: USER_SERVICE_URL }));
-
-// Order Service Routes
-app.use('/api/orders', createProxyMiddleware({ ...proxyOptions, target: ORDER_SERVICE_URL }));
-
-// Payment Service Routes
-app.use('/api/payments', createProxyMiddleware({ ...proxyOptions, target: PAYMENT_SERVICE_URL }));
 
 // Health Check
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'UP', service: 'api-gateway' });
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'API Gateway is running' });
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 API Gateway running on port ${PORT}`);
-    console.log(`🔗 User Service: ${USER_SERVICE_URL}`);
-    console.log(`🔗 Order Service: ${ORDER_SERVICE_URL}`);
-    console.log(`🔗 Payment Service: ${PAYMENT_SERVICE_URL}`);
+// Proxy options
+const proxyOptions = {
+  changeOrigin: true,
+  onProxyReq: (proxyReq: any, req: express.Request) => {
+    if ((req as any).user) {
+      proxyReq.setHeader('x-user-data', JSON.stringify((req as any).user));
+    }
+  }
+};
+
+// Apply auth middleware to all routes EXCEPT the public ones
+app.use('/api', (req, res, next) => {
+  // Routes that DON'T require authentication (relative to /api)
+const publicPaths = [
+  '/auth/login',
+  '/auth/register',
+  '/users/auth/login',
+  '/users/auth/register',
+  '/health'
+];
+
+const isPublic = publicPaths.some(path =>
+  req.path === path || req.path.startsWith(path + '/')
+) || req.path.endsWith('/health');
+
+  if (isPublic) {
+    return next();
+  }
+
+  return authMiddleware(req, res, next);
 });
+
+
+
+// User Service Proxy
+app.use('/api/users', createProxyMiddleware({
+  ...proxyOptions,
+  target: process.env.USER_SERVICE_URL || 'http://user-app:3001',
+  pathRewrite: (path) => {
+    // Forward auth routes to user service's /api/auth
+    if (path.includes('/auth')) {
+      return path.replace('/api/users/auth', '/api/auth');
+    }
+    // Health endpoint lives at service root (/health)
+    if (path === '/api/users/health' || path.endsWith('/users/health')) {
+      return '/health';
+    }
+    return path;
+  },
+  onProxyReq: (proxyReq, req) => {
+    console.log(`[Proxy] Forwarding ${req.method} to user-app:3001${proxyReq.path}`);
+  },
+  onProxyRes: (proxyRes) => {
+    console.log(`[Proxy] Received response from user-app: ${proxyRes.statusCode}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[Proxy Error] ${err.message}`, err);
+    res.status(502).json({ error: 'Bad Gateway', message: err.message });
+  }
+}));
+
+// Auth Proxy (user-service auth endpoints are mounted at /api/auth)
+app.use('/api/auth', createProxyMiddleware({
+  ...proxyOptions,
+  target: process.env.USER_SERVICE_URL || 'http://user-app:3001',
+  pathRewrite: (path: string) => path,
+  onProxyReq: (proxyReq, req) => {
+    console.log(`[Proxy] Forwarding ${req.method} to user-app:3001${proxyReq.path}`);
+  },
+  onProxyRes: (proxyRes) => {
+    console.log(`[Proxy] Received response from user-app (auth): ${proxyRes.statusCode}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[Proxy Error] ${err.message}`, err);
+    res.status(502).json({ error: 'Bad Gateway', message: err.message });
+  }
+}));
+
+// Order Service Proxy
+app.use('/api/orders', createProxyMiddleware({
+  ...proxyOptions,
+  target: process.env.ORDER_SERVICE_URL || 'http://order-app:3002',
+  pathRewrite: (path: string) => {
+    if (path === '/api/orders/health' || path.endsWith('/orders/health')) {
+      return '/health';
+    }
+    return path;
+  }
+}));
+
+// Payment Service Proxy
+app.use('/api/payments', createProxyMiddleware({
+  ...proxyOptions,
+  target: process.env.PAYMENT_SERVICE_URL || 'http://payment-app:3003',
+  changeOrigin: true,
+  pathRewrite: (path: string) => {
+    if (path === '/api/payments/health' || path.endsWith('/payments/health')) {
+      return '/health';
+    }
+    return path;
+  },
+  onProxyReq: (proxyReq, req) => {
+    console.log(`[Proxy] Forwarding ${req.method} to payment-app:3003${proxyReq.path}`);
+  },
+  onProxyRes: (proxyRes) => {
+    console.log(`[Proxy] Response from payment-app: ${proxyRes.statusCode}`);
+  },
+  onError: (err, req, res) => {
+    console.error(`[Proxy Error] ${err.message}`, err);
+    res.status(502).json({ error: 'Bad Gateway', message: err.message });
+  }
+}));
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 API Gateway running on http://0.0.0.0:${PORT}`);
+});
+

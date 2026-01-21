@@ -1,47 +1,34 @@
 openapi: 3.0.0
 info:
   title: Distributed Parcel Delivery & Tracking System
-  version: 1.0.0
+  version: 1.0.1
   description: |
-    This is the API documentation for the distributed parcel delivery system.
-    It includes three microservices:
-      - User & Auth Service
-      - Package Service
-      - Notification & Tracking Service
+    OpenAPI 3.0 spec updated to reflect implemented backend endpoints.
 
 servers:
   - url: http://localhost:3001
-    description: User & Auth Service
+    description: user-service (auth, users)
   - url: http://localhost:3002
-    description: Package Service
+    description: order-service
   - url: http://localhost:3003
-    description: Notification & Tracking Service
+    description: payment-service
 
 tags:
   - name: Authentication
-    description: User signup, login, token refresh, logout
+    description: User signup and login
   - name: Users
-    description: Manage user profiles and roles
-  - name: Packages
-    description: Create and manage parcel deliveries
-  - name: Courier Actions
-    description: Actions performed by couriers
-  - name: Tracking
-    description: Real-time package tracking
-  - name: Notifications
-    description: Notifications for package events
+    description: User profile, addresses and courier/customer actions
+  - name: Orders
+    description: Create and manage orders
+  - name: Payments
+    description: Payment initiation and pricing
 
 paths:
 
-  ###############################################
-  # AUTH SERVICE
-  ###############################################
-
-  /auth/register:
+  /api/auth/register:
     post:
       tags: [Authentication]
       summary: Register a new user (customer or courier)
-      description: Users can create an account. Role determines access level.
       requestBody:
         required: true
         content:
@@ -49,25 +36,21 @@ paths:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
       responses:
-        "201":
-          description: User successfully registered
+        '201':
+          description: User registered successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthSuccess'
-        "400":
-          description: Missing fields or user already exists
-        "500":
-          description: Internal server error
+                type: object
+                properties:
+                  message: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '400': { description: Bad request }
 
-  /auth/login:
+  /api/auth/login:
     post:
       tags: [Authentication]
-      summary: Login user and receive tokens
-      description: |
-        Authenticates a user and returns:
-        - accessToken (short lived)
-        - refreshToken (long lived)
+      summary: Login and receive token
       requestBody:
         required: true
         content:
@@ -75,252 +58,449 @@ paths:
             schema:
               $ref: '#/components/schemas/LoginRequest'
       responses:
-        "200":
-          description: Logged in
+        '200':
+          description: Login successful
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthSuccess'
-        "401":
-          description: Incorrect credentials
+                type: object
+                properties:
+                  message: { type: string }
+                  token: { type: string }
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { description: Invalid credentials }
 
-  /auth/refresh:
-    post:
-      tags: [Authentication]
-      summary: Refresh access token using refresh token
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                refreshToken:
-                  type: string
-      responses:
-        "200":
-          description: New access token returned
-        "401":
-          description: Invalid refresh token
-
-  /auth/logout:
-    post:
-      tags: [Authentication]
-      summary: Logout user (invalidate refresh token)
-      responses:
-        "200":
-          description: Logged out
-
-  ###############################################
-  # USERS
-  ###############################################
-
-  /users/{id}:
+  # User endpoints (mounted under /api/users)
+  /api/users/me:
     get:
       tags: [Users]
-      summary: Get user by ID
-      parameters:
-        - $ref: "#/components/parameters/UserId"
+      summary: Get authenticated user's profile
       responses:
-        "200":
-          description: User found
+        '200':
+          description: User profile
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-        "404":
-          description: User not found
-
+                $ref: '#/components/schemas/UserProfile'
     put:
       tags: [Users]
-      summary: Update user details
-      parameters:
-        - $ref: "#/components/parameters/UserId"
+      summary: Update authenticated user's profile
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UserUpdate"
+              $ref: '#/components/schemas/UserUpdate'
       responses:
-        "200":
-          description: Updated successfully
+        '200': { description: Updated }
+    delete:
+      tags: [Users]
+      summary: Delete authenticated user's account
+      responses:
+        '200': { description: Deleted }
 
-  /users:
+  /api/users/profile:
     get:
       tags: [Users]
-      summary: Get all users (Admin only)
+      summary: Alias for /api/users/me
       responses:
-        "200":
-          description: List of all users
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
 
-  /users/{id}/role:
-    patch:
+  # Customer-specific endpoints (mounted under /api/customers)
+  /api/customers/me/profile:
+    get:
       tags: [Users]
-      summary: Update user role (Admin only)
-      parameters:
-        - $ref: "#/components/parameters/UserId"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                role:
-                  type: string
-                  enum: [customer, courier, admin]
+      summary: Get customer profile (includes addresses)
       responses:
-        "200":
-          description: Role updated
+        '200':
+          description: Customer profile with addresses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  profile: { $ref: '#/components/schemas/UserProfile' }
+                  addresses:
+                    type: array
+                    items: { $ref: '#/components/schemas/Address' }
 
-  ###############################################
-  # PACKAGE SERVICE
-  ###############################################
-
-  /packages:
+  /api/customers/me/addresses:
+    get:
+      tags: [Users]
+      summary: List addresses for authenticated customer
+      responses:
+        '200':
+          description: List of addresses
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Address' }
     post:
-      tags: [Packages]
-      summary: Create a new package shipment
-      description: |
-        Customer creates a shipment request.
-        This publishes event: **package.created**
+      tags: [Users]
+      summary: Add an address for the authenticated customer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PackageCreateRequest'
+              $ref: '#/components/schemas/AddressCreate'
       responses:
-        "201":
-          description: Package created
-        "400":
-          description: Invalid data
+        '201':
+          description: Address created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Address' }
 
+  # Courier-specific
+  /api/couriers/me/profile:
     get:
-      tags: [Packages]
-      summary: Get all packages (Admin)
+      tags: [Users]
+      summary: Get courier profile
       responses:
-        "200":
-          description: List of packages
+        '200':
+          description: Courier profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourierProfile'
 
-  /packages/{packageId}:
-    get:
-      tags: [Packages]
-      summary: Get package by ID
-      parameters:
-        - $ref: "#/components/parameters/PackageId"
-      responses:
-        "200":
-          description: Package found
-
-  /packages/user/{userId}:
-    get:
-      tags: [Packages]
-      summary: Get all packages for a specific user
-      parameters:
-        - $ref: "#/components/parameters/UserId"
-      responses:
-        "200":
-          description: Packages returned
-
-  /packages/{packageId}/assign:
-    patch:
-      tags: [Courier Actions]
-      summary: Assign a courier to a package
-      description: |
-        Admin or system assigns a courier.
-        This publishes: **package.assigned**
-      parameters:
-        - $ref: "#/components/parameters/PackageId"
+  /api/couriers/me/status:
+    put:
+      tags: [Users]
+      summary: Update courier status
       requestBody:
         content:
           application/json:
             schema:
               type: object
               properties:
-                courierId:
-                  type: string
+                status: { type: string }
       responses:
-        "200": { description: Assigned }
+        '200': { description: Updated }
 
-  /packages/{packageId}/status:
-    patch:
-      tags: [Courier Actions]
-      summary: Courier updates package status
-      description: |
-        Couriers update the status as they deliver.
-        This publishes: **package.status.updated**
-      parameters:
-        - $ref: "#/components/parameters/PackageId"
+  /api/couriers/me/location:
+    put:
+      tags: [Users]
+      summary: Update courier location
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                latitude: { type: number }
+                longitude: { type: number }
+      responses:
+        '200': { description: Updated }
+
+  /api/couriers/me/vehicles:
+    post:
+      tags: [Users]
+      summary: Add vehicle for courier
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                make: { type: string }
+                model: { type: string }
+                plateNumber: { type: string }
+      responses:
+        '201': { description: Vehicle added }
+
+  /api/couriers/me/availability:
+    post:
+      tags: [Users]
+      summary: Set courier availability
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from: { type: string, format: date-time }
+                to: { type: string, format: date-time }
+      responses:
+        '200': { description: Availability recorded }
+
+  ########################################
+  # Orders
+  ########################################
+
+  /api/orders/estimate-price:
+    post:
+      tags: [Orders]
+      summary: Estimate delivery price
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/StatusUpdateRequest"
+              $ref: '#/components/schemas/PriceEstimateRequest'
       responses:
-        "200":
-          description: Status updated
+        '200':
+          description: Price estimate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceEstimateResponse'
 
-  ###############################################
-  # TRACKING & NOTIFICATIONS SERVICE
-  ###############################################
-
-  /tracking/{packageId}:
+  /api/orders:
+    post:
+      tags: [Orders]
+      summary: Create order (customer)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreateRequest'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
     get:
-      tags: [Tracking]
-      summary: Get real-time package tracking info
+      tags: [Orders]
+      summary: Get orders (filters available)
       parameters:
-        - $ref: "#/components/parameters/PackageId"
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: priority
+          in: query
+          schema: { type: string }
+        - name: customerId
+          in: query
+          schema: { type: string }
+        - name: courierId
+          in: query
+          schema: { type: string }
       responses:
-        "200":
-          description: Real-time tracking returned
+        '200':
+          description: Orders list with pagination
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items: { $ref: '#/components/schemas/Order' }
+                  pagination:
+                    type: object
 
-  /notifications/{userId}:
+  /api/orders/my-orders:
     get:
-      tags: [Notifications]
-      summary: Get all notifications for a user
-      parameters:
-        - $ref: "#/components/parameters/UserId"
+      tags: [Orders]
+      summary: Get authenticated customer's orders
       responses:
-        "200":
-          description: Notification list
+        '200':
+          description: Customer orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Order' }
 
-###############################################
-# COMPONENTS
-###############################################
+  /api/orders/courier-orders:
+    get:
+      tags: [Orders]
+      summary: Get courier's orders
+      responses:
+        '200': { description: Orders for courier }
+
+  /api/orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Order object
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+
+  /api/orders/{id}/status:
+    patch:
+      tags: [Orders]
+      summary: Update order status (courier)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string }
+                notes: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+      responses:
+        '200': { description: Updated order }
+
+  /api/orders/{id}/cancel:
+    patch:
+      tags: [Orders]
+      summary: Cancel an order (customer)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Order cancelled }
+
+  /api/orders/{id}/assign-courier:
+    patch:
+      tags: [Orders]
+      summary: Assign courier to order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                courierId: { type: string }
+                vehicleId: { type: string }
+      responses:
+        '200': { description: Courier assigned }
+
+  ########################################
+  # Payments
+  ########################################
+
+  /api/payments/initiate:
+    post:
+      tags: [Payments]
+      summary: Initiate payment for an order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId: { type: string }
+                amount: { type: number }
+      responses:
+        '200': { description: Payment initiated }
+
+  /api/payments/mock-success:
+    post:
+      tags: [Payments]
+      summary: Dev endpoint to simulate payment success
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orderId: { type: string }
+      responses:
+        '200': { description: Payment processed (mock) }
+
+  /api/payments/verify:
+    get:
+      tags: [Payments]
+      summary: Verify payment (callback)
+      responses:
+        '200': { description: Verification result }
+
+  /api/payments/order/{orderId}:
+    get:
+      tags: [Payments]
+      summary: Get payment details for an order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Payment info }
+
+  /api/payments/calculate-fee:
+    post:
+      tags: [Payments]
+      summary: Calculate delivery fee for parcels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                parcels:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      weightKg: { type: number }
+                      isFragile: { type: boolean }
+                      declaredValue: { type: number }
+      responses:
+        '200':
+          description: Fee calculation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceEstimateResponse'
+
+  /api/payments/pricing-rules:
+    get:
+      tags: [Payments]
+      summary: Get current pricing rules
+      responses:
+        '200': { description: Pricing rules object }
+
+  /api/payments/calculation/{orderId}:
+    get:
+      tags: [Payments]
+      summary: Get stored fee calculation for an order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Calculation object }
 
 components:
-
-  parameters:
-    UserId:
-      name: id
-      in: path
-      required: true
-      schema: { type: string }
-
-    PackageId:
-      name: packageId
-      in: path
-      required: true
-      schema: { type: string }
-
   schemas:
-
-    #################################################
-    # AUTH SCHEMAS
-    #################################################
-
     RegisterRequest:
       type: object
-      required: [name, email, password, role]
+      required: [email, password, first_name, last_name, phone_number]
       properties:
-        name: { type: string }
         email: { type: string }
         password: { type: string }
-        phone: { type: string }
-        role:
+        first_name: { type: string }
+        last_name: { type: string }
+        phone_number: { type: string }
+        user_role:
           type: string
-          enum: [customer, courier]
+          enum: [CUSTOMER, COURIER]
 
     LoginRequest:
       type: object
@@ -329,85 +509,128 @@ components:
         email: { type: string }
         password: { type: string }
 
-    AuthSuccess:
-      type: object
-      properties:
-        accessToken: { type: string }
-        refreshToken: { type: string }
-        user:
-          $ref: '#/components/schemas/User'
-
-    #################################################
-    # USER SCHEMAS
-    #################################################
-
     User:
       type: object
       properties:
-        id: { type: string }
-        name: { type: string }
+        user_id: { type: string }
         email: { type: string }
-        phone: { type: string }
-        role:
-          type: string
-          enum: [customer, courier, admin]
+        first_name: { type: string }
+        last_name: { type: string }
+        phone_number: { type: string }
+        user_role: { type: string }
+
+    UserProfile:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            is_active: { type: boolean }
+            is_verified: { type: boolean }
 
     UserUpdate:
       type: object
       properties:
-        name: { type: string }
-        phone: { type: string }
+        first_name: { type: string }
+        last_name: { type: string }
+        phone_number: { type: string }
 
-    #################################################
-    # PACKAGE SCHEMAS
-    #################################################
-
-    PackageCreateRequest:
-      type: object
-      required: [senderId, receiverName, receiverAddress, weight]
-      properties:
-        senderId: { type: string }
-        receiverName: { type: string }
-        receiverPhone: { type: string }
-        receiverAddress: { type: string }
-        description: { type: string }
-        weight: { type: number }
-        expectedDeliveryDate: { type: string, format: date }
-
-    StatusUpdateRequest:
-      type: object
-      required: [status]
-      properties:
-        status:
-          type: string
-          enum:
-            - created
-            - assigned
-            - picked_up
-            - in_transit
-            - arrived_hub
-            - out_for_delivery
-            - delivered
-            - cancelled
-        location:
-          type: string
-        timestamp:
-          type: string
-          format: date-time
-
-    #################################################
-    # NOTIFICATION SCHEMA
-    #################################################
-
-    Notification:
+    Address:
       type: object
       properties:
-        id: { type: string }
-        userId: { type: string }
-        message: { type: string }
-        type:
-          type: string
-          enum: [package_update, system]
-        createdAt:
-          type: string
-          format: date-time
+        address_id: { type: string }
+        address_type: { type: string }
+        street_address: { type: string }
+        subcity: { type: string }
+        kebele: { type: string }
+        house_number: { type: string }
+        landmark: { type: string }
+        instructions: { type: string }
+
+    AddressCreate:
+      type: object
+      required: [address_type, street_address]
+      properties:
+        address_type: { type: string }
+        street_address: { type: string }
+        contact_name: { type: string }
+        contact_phone: { type: string }
+
+    CourierProfile:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        status: { type: string }
+
+    PriceEstimateRequest:
+      type: object
+      required: [parcels]
+      properties:
+        priority: { type: string }
+        serviceType: { type: string }
+        parcels:
+          type: array
+          items:
+            type: object
+            properties:
+              weightKg: { type: number }
+              isFragile: { type: boolean }
+              isPerishable: { type: boolean }
+              requiresSignature: { type: boolean }
+              declaredValue: { type: number }
+
+    PriceEstimateResponse:
+      type: object
+      properties:
+        estimatedPrice: { type: number }
+        breakdown: { type: object }
+
+    OrderCreateRequest:
+      type: object
+      required: [addresses, parcels]
+      properties:
+        priority: { type: string }
+        serviceType: { type: string }
+        scheduledPickupTime: { type: string, format: date-time }
+        scheduledDeliveryTime: { type: string, format: date-time }
+        notes: { type: string }
+        addresses:
+          type: array
+          items: { $ref: '#/components/schemas/AddressCreate' }
+        parcels:
+          type: array
+          items:
+            type: object
+            properties:
+              description: { type: string }
+              weightKg: { type: number }
+              lengthCm: { type: number }
+              widthCm: { type: number }
+              heightCm: { type: number }
+              declaredValue: { type: number }
+              category: { type: string }
+              isFragile: { type: boolean }
+              isPerishable: { type: boolean }
+              requiresSignature: { type: boolean }
+
+    Order:
+      type: object
+      properties:
+        orderId: { type: string }
+        orderNumber: { type: string }
+        customerId: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        serviceType: { type: string }
+        price: { type: number }
+        addresses:
+          type: array
+          items: { $ref: '#/components/schemas/Address' }
+        parcels:
+          type: array
+          items:
+            type: object
+            properties:
+              parcelNumber: { type: string }
+              description: { type: string }
+              weightKg: { type: number }
+

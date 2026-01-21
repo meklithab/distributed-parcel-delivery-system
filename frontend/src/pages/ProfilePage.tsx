@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { USERS_API } from '../lib/axios';
+import api, { USERS_API, CUSTOMERS_API, COURIERS_API } from '../lib/axios';
 import { User, Phone, Mail, Save, X, ChevronLeft, Shield } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -13,6 +13,8 @@ export default function ProfilePage() {
         last_name: '',
         phone_number: ''
     });
+    const [addresses, setAddresses] = useState<any[]>([]);
+    const [courierInfo, setCourierInfo] = useState<any>(null);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -22,12 +24,32 @@ export default function ProfilePage() {
     const fetchProfile = async () => {
         try {
             const res = await api.get(`${USERS_API}/me`);
-            setUser(res.data);
+            const userData = res.data;
+            setUser(userData);
             setFormData({
-                first_name: res.data.first_name,
-                last_name: res.data.last_name,
-                phone_number: res.data.phone_number
+                first_name: userData.first_name,
+                last_name: userData.last_name,
+                phone_number: userData.phone_number
             });
+
+            // Fetch role-specific details
+            if (userData.user_role === 'CUSTOMER') {
+                try {
+                    const c = await api.get(`${CUSTOMERS_API}/me/profile`);
+                    if (c?.data?.addresses) setAddresses(c.data.addresses);
+                } catch (err) {
+                    console.warn('Failed to fetch customer profile', err);
+                }
+            }
+
+            if (userData.user_role === 'COURIER') {
+                try {
+                    const c = await api.get(`${COURIERS_API}/me/profile`);
+                    setCourierInfo(c?.data || null);
+                } catch (err) {
+                    console.warn('Failed to fetch courier profile', err);
+                }
+            }
         } catch (error) {
             console.error('Failed to fetch profile', error);
         } finally {
@@ -39,11 +61,12 @@ export default function ProfilePage() {
         e.preventDefault();
         try {
             const res = await api.put(`${USERS_API}/me`, formData);
-            setUser(res.data.user);
+            // API may return user or plain object
+            setUser(res.data.user || res.data);
             setIsEditing(false);
             // Update local storage if needed
             const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-            localStorage.setItem('user', JSON.stringify({ ...currentUser, ...res.data.user }));
+            localStorage.setItem('user', JSON.stringify({ ...currentUser, ...(res.data.user || res.data) }));
         } catch (error) {
             alert('Failed to update profile');
         }
@@ -130,6 +153,44 @@ export default function ProfilePage() {
                                 </div>
                             </div>
                         </div>
+                        {/* Role-specific display */}
+                        {user?.user_role === 'CUSTOMER' && (
+                            <div className="mt-6">
+                                <h3 className="text-lg font-bold mb-3">Addresses</h3>
+                                {addresses.length === 0 ? (
+                                    <p className="text-sm text-slate-500">No saved addresses.</p>
+                                ) : (
+                                    <ul className="space-y-3">
+                                        {addresses.map(addr => (
+                                            <li key={addr.address_id} className="p-3 bg-white border rounded-md">
+                                                <div className="text-sm font-bold">{addr.contact_name || `${user.first_name} ${user.last_name}`}</div>
+                                                <div className="text-sm text-slate-600">{addr.street_address}</div>
+                                                <div className="text-xs text-slate-400">{addr.address_type}</div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
+
+                        {user?.user_role === 'COURIER' && (
+                            <div className="mt-6">
+                                <h3 className="text-lg font-bold mb-3">Courier Info</h3>
+                                <div className="p-3 bg-white border rounded-md">
+                                    <div className="text-sm"><span className="font-bold">Status:</span> {courierInfo?.status || 'UNKNOWN'}</div>
+                                    {courierInfo?.vehicles && (
+                                        <div className="mt-2">
+                                            <div className="text-sm font-bold">Vehicles</div>
+                                            <ul className="text-sm text-slate-600">
+                                                {courierInfo.vehicles.map((v:any, i:number) => (
+                                                    <li key={i}>{v.make} {v.model} - {v.plateNumber}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
                             {isEditing ? (
