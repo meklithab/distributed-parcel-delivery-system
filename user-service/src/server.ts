@@ -1,3 +1,4 @@
+//C:\Users\HP\Documents\5(1ST SEMESTER)\ds\u\distributed-parcel-delivery-system\distributed-parcel-delivery-system\user-service\src\server.ts
 import express, { Request, Response } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -7,9 +8,7 @@ import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import customerRoutes from './routes/customer.routes';
 import courierRoutes from './routes/courier.routes';
-import addressRoutes from './routes/address.routes';
-import ratingRoutes from './routes/rating.routes';
-import { rabbitMQ } from './config/rabbitmq';
+import { rabbitMQ } from './config/rabbitmq'; 
 import { startPackageConsumer } from './events/consumers/package.consumer';
 
 
@@ -33,8 +32,6 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/couriers', courierRoutes);
-app.use('/api/addresses', addressRoutes);
-app.use('/api/ratings', ratingRoutes);
 
 
 

@@ -9,5 +9,11 @@ export default defineConfig({
     port: 5173,
     host: true, // Listen on all addresses
     strictPort: true, // Fail if port is in use
+    hmr: {
+      clientPort: 5173,
+    },
+    watch: {
+      usePolling: true,
+    }
   }
 })

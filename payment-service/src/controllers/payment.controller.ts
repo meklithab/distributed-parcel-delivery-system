@@ -2,33 +2,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { paymentProducer } from '../events/producers/payment.producer';
-import { PricingService } from '../services/pricing.service';
-
-/**
- * Estimate delivery pricing
- */
-export const estimatePricing = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const { priority, weightKg, pickupSubcity, deliverySubcity } = req.body;
-
-        if (!priority || weightKg === undefined || !pickupSubcity || !deliverySubcity) {
-            res.status(400).json({ message: 'Missing required fields for pricing estimation' });
-            return;
-        }
-
-        const estimate = PricingService.calculateFees({
-            priority,
-            weightKg: parseFloat(weightKg),
-            pickupSubcity,
-            deliverySubcity
-        });
-
-        res.json(estimate);
-    } catch (error) {
-        console.error('Pricing estimation error:', error);
-        res.status(500).json({ message: 'Server error during pricing estimation' });
-    }
-};
 
 export const processPayment = async (req: Request, res: Response): Promise<void> => {
     try {

@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -27,4 +28,4 @@ COPY . .
 EXPOSE 3001
 
 # Run migrations and then the application
-CMD ["sh", "-c", "npx prisma db push && npm run dev"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm run dev"]

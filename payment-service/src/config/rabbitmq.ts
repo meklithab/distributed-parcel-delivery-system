@@ -1,115 +1,95 @@
+
 import * as amqp from 'amqplib';
-import { Channel } from 'amqplib';
 
 class RabbitMQService {
   private connection: any = null;
-  private channel: Channel | null = null;
+  private channel: any = null;
   private isConnected = false;
-  private readonly exchange = process.env.RABBITMQ_EXCHANGE || 'delivery_exchange';
+  private readonly exchange = 'delivery_exchange';
 
   async connect(): Promise<void> {
-    if (this.isConnected) return;
+    if (this.isConnected && this.channel) return;
+
+    const url = process.env.RABBITMQ_URL || 'amqp://rabbitmq:5672';
+    console.log(`🔌 Attempting to connect to RabbitMQ URL: "${url}"`);
 
     try {
-      const url = process.env.RABBITMQ_URL || 'amqp://rabbitmq:5672';
-      console.log(`Connecting to RabbitMQ at ${url}...`);
-
       this.connection = await amqp.connect(url);
       this.channel = await this.connection.createChannel();
 
-      await this.channel!.assertExchange(this.exchange, 'topic', { durable: true });
+      await this.channel.assertExchange(this.exchange, 'topic', { durable: true });
 
       this.isConnected = true;
       console.log('✅ Connected to RabbitMQ');
 
-      this.connection.on('close', () => {
-        console.error('❌ RabbitMQ connection closed. Reconnecting...');
-        this.isConnected = false;
-        setTimeout(() => this.connect(), 3000);
-      });
-
       this.connection.on('error', (err: any) => {
-        console.error('❌ RabbitMQ error:', err);
+        console.error('❌ RabbitMQ connection error:', err);
         this.isConnected = false;
+        this.channel = null;
       });
 
-    } catch (error) {
-      console.error('❌ Failed to connect to RabbitMQ:', error);
-      setTimeout(() => this.connect(), 5000);
+      this.connection.on('close', () => {
+        console.warn('⚠️ RabbitMQ connection closed');
+        this.isConnected = false;
+        this.channel = null;
+      });
+
+    } catch (error: any) {
+      console.error('❌ Failed to connect to RabbitMQ:', error.message);
+      this.isConnected = false;
+      this.channel = null;
+      throw error;
     }
   }
 
   async publish(routingKey: string, data: any): Promise<boolean> {
     if (!this.channel) {
-      console.error('Cannot publish, channel is null');
+      console.error(`❌ Cannot publish to ${routingKey}: RabbitMQ channel not initialized!`);
+      this.connect().catch(() => { });
       return false;
     }
-    const content = Buffer.from(JSON.stringify(data));
-    console.log(`📤 Publishing to "${routingKey}":`, data);
-    return this.channel.publish(this.exchange, routingKey, content, { persistent: true });
+
+    try {
+      const content = Buffer.from(JSON.stringify(data));
+      console.log(`📤 Publishing to "${routingKey}":`, JSON.stringify(data).substring(0, 100));
+      return this.channel.publish(this.exchange, routingKey, content, { persistent: true });
+    } catch (error) {
+      console.error(`❌ Error publishing to ${routingKey}:`, error);
+      return false;
+    }
   }
 
-  async subscribe(routingKey: string, queueName: string, callback: (data: any) => Promise<void>): Promise<void> {
+  async subscribe(routingKey: string, queueName: string, callback: (data: any) => Promise<void>): Promise<boolean> {
     if (!this.channel) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (!this.channel) return;
+      console.error(`❌ Cannot subscribe to ${routingKey}: RabbitMQ channel not initialized!`);
+      return false;
     }
 
-    const deadLetterExchange = `${this.exchange}.dlx`;
-    const deadLetterQueue = `${queueName}.dlq`;
+    try {
+      await this.channel.assertQueue(queueName, { durable: true });
+      await this.channel.bindQueue(queueName, this.exchange, routingKey);
 
-    await this.channel.assertExchange(deadLetterExchange, 'topic', { durable: true });
-    await this.channel.assertQueue(deadLetterQueue, { durable: true });
-    await this.channel.bindQueue(deadLetterQueue, deadLetterExchange, '#');
+      console.log(`📥 Subscribed to "${routingKey}" via queue "${queueName}"`);
 
-    await this.channel.assertQueue(queueName, {
-      durable: true,
-      arguments: {
-        'x-dead-letter-exchange': deadLetterExchange,
-        'x-dead-letter-routing-key': routingKey
-      }
-    });
-    await this.channel.bindQueue(queueName, this.exchange, routingKey);
-
-    console.log(`📥 Subscribed to "${routingKey}" via queue "${queueName}" (DLQ enabled)`);
-
-    this.channel.consume(queueName, async (msg) => {
-      if (!msg) return;
-
-      try {
-        const content = JSON.parse(msg.content.toString());
-        await callback(content);
-        this.channel?.ack(msg);
-      } catch (err) {
-        console.error(`❌ Error processing message from ${queueName}:`, err);
-
-        const headers = msg.properties.headers || {};
-        const retryCount = (headers['x-retry-count'] || 0) as number;
-        const maxRetries = 3;
-
-        if (retryCount < maxRetries) {
-          console.log(`🔄 Retrying message (${retryCount + 1}/${maxRetries})...`);
-
-          setTimeout(async () => {
-            try {
-              if (this.channel) {
-                this.channel.publish(this.exchange, routingKey, msg.content, {
-                  headers: { ...headers, 'x-retry-count': retryCount + 1 },
-                  persistent: true
-                });
-                this.channel.ack(msg);
-              }
-            } catch (pErr) {
-              console.error('Failed to republish for retry:', pErr);
-              this.channel?.nack(msg, false, false);
-            }
-          }, 2000 * Math.pow(2, retryCount));
-        } else {
-          console.error(`💀 Max retries reached for message. Moving to DLQ.`);
-          this.channel?.nack(msg, false, false);
+      await this.channel.consume(queueName, async (msg: any) => {
+        if (msg) {
+          try {
+            const content = JSON.parse(msg.content.toString());
+            console.log(`📨 Received message on ${routingKey}`);
+            await callback(content);
+            this.channel?.ack(msg);
+          } catch (error) {
+            console.error(`❌ Error processing message from ${queueName}:`, error);
+            this.channel?.nack(msg, false, false);
+          }
         }
-      }
-    });
+      });
+
+      return true;
+    } catch (error) {
+      console.error(`❌ Error subscribing to ${routingKey}:`, error);
+      return false;
+    }
   }
 }
 

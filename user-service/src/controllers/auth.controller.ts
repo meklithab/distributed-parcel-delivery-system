@@ -17,7 +17,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     const user = await userService.createUser(req.body);
-    
+
     res.status(201).json({
       message: 'User registered successfully',
       user
@@ -50,25 +50,28 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Generate Token
     const token = jwt.sign(
-      { 
-        userId: user.user_id, 
-        role: user.user_role 
+      {
+        userId: user.user_id,
+        role: user.user_role
       },
       process.env.JWT_SECRET || 'secret',
       { expiresIn: '1h' }
     );
 
-     res.json({
-       message: 'Login successful',
-       token,
-       user: {
-         id: user.user_id,
-         email: user.email,
-         first_name: user.first_name,
-         last_name: user.last_name,
-         role: user.user_role
-       }
-     });
+    res.json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.user_id,
+        user_id: user.user_id,
+        email: user.email,
+        role: user.user_role,
+        user_role: user.user_role,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone_number: user.phone_number
+      }
+    });
 
   } catch (error) {
     console.error('Login error:', error);

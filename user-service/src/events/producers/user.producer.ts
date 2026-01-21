@@ -1,4 +1,4 @@
-
+//C:\Users\HP\Documents\5(1ST SEMESTER)\ds\u\distributed-parcel-delivery-system\distributed-parcel-delivery-system\user-service\src\events\producers\user.producer.ts
 import { rabbitMQ } from '../../config/rabbitmq';
 
 export class UserProducer {

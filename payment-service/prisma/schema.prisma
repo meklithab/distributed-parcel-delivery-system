@@ -236,16 +236,24 @@ model GatewayLog {
   error_message String?
   created_at    DateTime @default(now()) @map("created_at")
 
-
-//////////////////////////////////////////////////
-// IDEMPOTENCY
-//////////////////////////////////////////////////
-
-model ProcessedEvent {
-  eventId    String   @id
-  eventType  String
-  service    String
-  processedAt DateTime @default(now()) @map("processed_at")
-
-  @@index([eventId])
+  payment Payment? @relation(fields: [payment_id], references: [payment_id])
 }
+
+//
+// PRICING RULES - Configurable pricing parameters
+//
+model PricingRule {
+  rule_id       String   @id @default(uuid()) @db.Uuid
+  rule_name     String   @unique @db.VarChar(50)
+  rule_type     String   @db.VarChar(30) // BASE_FEE, WEIGHT_FEE, PRIORITY_MULTIPLIER, SERVICE_MULTIPLIER, HANDLING_FEE
+  numeric_value Decimal  @db.Decimal(10,4)
+  description   String?  @db.Text
+  is_active     Boolean  @default(true)
+  effective_from DateTime @default(now())
+  effective_to   DateTime?
+  created_at    DateTime @default(now()) @map("created_at")
+  updated_at    DateTime @updatedAt @map("updated_at")
+
+  @@index([rule_type, is_active], name: "idx_pricing_rules_type_active")
+}
+

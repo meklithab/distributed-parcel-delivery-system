@@ -3,8 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
-import PaymentPage from './pages/PaymentPage';
-import PaymentSuccessPage from './pages/PaymentSucces';
+import OrderDetailsPage from './pages/OrderDetailsPage';
+import CheckoutPage from './pages/Payment/CheckoutPage';
+import PaymentSuccessPage from './pages/Payment/PaymentSucess';
 import ProfilePage from './pages/ProfilePage';
 
 function App() {
@@ -14,11 +15,13 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/test-payment" element={<PaymentPage />} />
+        <Route path="/order/:orderId" element={<OrderDetailsPage />} />
+        <Route path="/checkout/:orderId" element={<CheckoutPage />} />
         <Route path="/payment/success" element={<PaymentSuccessPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
+        <Route path='/profile' element={<ProfilePage />}/>
 
+
+        <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

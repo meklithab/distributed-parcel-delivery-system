@@ -36,15 +36,15 @@ export const startOrderConsumer = async (retryCount = 0): Promise<void> => {
           return;
         }
 
-        // Create new payment record
+        // Create new payment record using price from order.created event when available
         const payment = await prisma.payment.create({
           data: {
             order_id: data.orderId,
             customer_id: data.customerId,
-            amount: 0, // will be calculated later or during payment initiation
+            amount: data.price ?? 0,
             payment_method: 'MOBILE_MONEY',
             status: 'PENDING',
-            currency_code: 'ETB'
+            currency_code: data.currency || 'ETB'
           }
         });
 

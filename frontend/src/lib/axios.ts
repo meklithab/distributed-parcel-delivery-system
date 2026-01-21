@@ -1,10 +1,11 @@
-
+//C:\Users\HP\Documents\5(1ST SEMESTER)\ds\u\distributed-parcel-delivery-system\distributed-parcel-delivery-system\frontend\src\lib\axios.ts
 import axios from 'axios';
 
-// Base URLs for Microservices
-export const USERS_API = 'http://localhost:3001/api';
-export const ORDERS_API = 'http://localhost:3002/api';
-export const PAYMENTS_API = 'http://localhost:3003/api';
+// Base URLs for Microservices (via NGINX Load Balancer)
+export const USERS_API = 'http://localhost:80/api/users';
+export const ORDERS_API = 'http://localhost:80/api/orders';
+export const PAYMENTS_API = 'http://localhost:80/api/payments';
+
 
 const api = axios.create({
   headers: {
