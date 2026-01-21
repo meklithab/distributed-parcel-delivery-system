@@ -1,8 +1,10 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import api, { ORDERS_API, PAYMENTS_API } from '../lib/axios';
 import { Package, Truck, LogOut, MapPin, DollarSign, XCircle, Calculator } from 'lucide-react';
+import { useToast } from '../contexts/ToastContext';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 interface PriceEstimate {
   estimatedPrice: number;
@@ -65,22 +67,33 @@ export default function DashboardPage() {
     }
   });
   const navigate = useNavigate();
+  const { addToast } = useToast();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) { navigate('/login'); return; }
-    const u = JSON.parse(userStr);
-    const normalized = {
-      ...u,
-      role: u.role || u.user_role,
-      userId: u.userId || u.user_id || u.id,
+    const init = async () => {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) { navigate('/login'); return; }
+      const u = JSON.parse(userStr);
+      const normalized = {
+        ...u,
+        role: u.role || u.user_role,
+        userId: u.userId || u.user_id || u.id,
+      };
+      setUser(normalized);
+      
+      setIsLoading(true);
+      try {
+        if (normalized.role === 'CUSTOMER') await fetchOrders();
+        if (normalized.role === 'COURIER') {
+          await fetchCourierOrders();
+          await fetchAvailableOrders();
+        }
+      } finally {
+        setIsLoading(false);
+      }
     };
-    setUser(normalized);
-    if (normalized.role === 'CUSTOMER') fetchOrders();
-    if (normalized.role === 'COURIER') {
-      fetchCourierOrders();
-      fetchAvailableOrders();
-    }
+    init();
   }, []);
 
   const fetchOrders = async () => {
@@ -88,9 +101,10 @@ export default function DashboardPage() {
       const res = await api.get(`${ORDERS_API}/my-orders`);
       setOrders(res.data);
       // Fetch payment status for each order
-      fetchPaymentStatuses(res.data);
+      await fetchPaymentStatuses(res.data);
     } catch (e) {
       console.error('Failed to fetch orders:', e);
+      addToast('Failed to fetch orders', 'error');
     }
   };
 
@@ -114,6 +128,7 @@ export default function DashboardPage() {
       setOrders(res.data);
     } catch (e) {
       console.error('Failed to fetch courier orders:', e);
+      addToast('Failed to fetch courier orders', 'error');
     }
   };
 
@@ -128,6 +143,7 @@ export default function DashboardPage() {
       setAvailableOrders(availableForCourier);
     } catch (e) {
       console.error('Failed to fetch available orders:', e);
+      addToast('Failed to fetch available orders', 'error');
     }
   };
 
@@ -244,10 +260,10 @@ export default function DashboardPage() {
       setPriceEstimate(null);
 
       setTimeout(fetchOrders, 1000);
-      alert('Order created successfully!');
+      addToast('Order created successfully!', 'success');
     } catch (e: any) {
       console.error('Create order error:', e);
-      alert('Failed to create order: ' + (e.response?.data?.message || e.message));
+      addToast('Failed to create order: ' + (e.response?.data?.message || e.message), 'error');
     }
   };
 
@@ -258,9 +274,9 @@ export default function DashboardPage() {
     try {
       await api.patch(`${ORDERS_API}/${orderId}/cancel`);
       await fetchOrders();
-      alert('Order cancelled successfully!');
+      addToast('Order cancelled successfully!', 'success');
     } catch (e: any) {
-      alert('Failed to cancel order: ' + (e.response?.data?.message || e.message));
+      addToast('Failed to cancel order: ' + (e.response?.data?.message || e.message), 'error');
     } finally {
       setCancellingOrder(null);
     }
@@ -268,7 +284,7 @@ export default function DashboardPage() {
 
   const assignToSelf = async (orderId: string) => {
     if (!user?.userId) {
-      alert('Missing courier ID');
+      addToast('Missing courier ID', 'error');
       return;
     }
     try {
@@ -277,9 +293,9 @@ export default function DashboardPage() {
       });
       await fetchCourierOrders();
       await fetchAvailableOrders();
-      alert('Order assigned to you');
+      addToast('Order assigned to you', 'success');
     } catch (e: any) {
-      alert('Failed to claim order: ' + (e.response?.data?.message || e.message));
+      addToast('Failed to claim order: ' + (e.response?.data?.message || e.message), 'error');
     }
   };
 
@@ -296,9 +312,9 @@ export default function DashboardPage() {
         fetchOrders();
       }
 
-      alert('Order status updated successfully!');
+      addToast('Order status updated successfully!', 'success');
     } catch (e: any) {
-      alert('Failed to update status: ' + (e.response?.data?.message || e.message));
+      addToast('Failed to update status: ' + (e.response?.data?.message || e.message), 'error');
     }
   };
 
@@ -349,7 +365,9 @@ export default function DashboardPage() {
           <Truck /> Delivery App
         </h1>
         <div className="flex items-center gap-4">
-          <span className="text-gray-600">Welcome, {user?.first_name} ({user?.role})</span>
+          <Link to="/profile" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">
+            Welcome, {user?.first_name} ({user?.role})
+          </Link>
           <button onClick={logout} className="text-red-500 hover:text-red-700"><LogOut size={20} /></button>
         </div>
       </nav>
@@ -530,7 +548,15 @@ export default function DashboardPage() {
             <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow">
               <h2 className="text-lg font-bold mb-4">My Orders</h2>
               <div className="space-y-4">
-                {orders.length === 0 && <p className="text-gray-500">No orders found.</p>}
+                {isLoading ? (
+                  <div className="flex justify-center py-8"><LoadingSpinner size={40} /></div>
+                ) : orders.length === 0 ? (
+                  <div className="text-center py-10 bg-white rounded-lg border-2 border-dashed border-gray-200">
+                    <Package className="mx-auto h-12 w-12 text-gray-300" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No orders</h3>
+                    <p className="mt-1 text-sm text-gray-500">You haven't placed any orders yet.</p>
+                  </div>
+                ) : null}
                 {orders.map((order) => {
                   const pickupAddr = order.addresses?.find((a: any) => a.addressType === 'PICKUP');
                   const deliveryAddr = order.addresses?.find((a: any) => a.addressType === 'DELIVERY');
@@ -640,7 +666,15 @@ export default function DashboardPage() {
               <h2 className="text-lg font-bold mb-4">Available Orders (Paid & Ready for Pickup)</h2>
               <p className="text-sm text-gray-600 mb-4">Only orders with completed payment are shown here.</p>
               <div className="space-y-4">
-                {availableOrders.length === 0 && <p className="text-gray-500">No available orders right now.</p>}
+                {isLoading ? (
+                  <div className="flex justify-center py-8"><LoadingSpinner size={40} /></div>
+                ) : availableOrders.length === 0 ? (
+                  <div className="text-center py-10 bg-white rounded-lg border-2 border-dashed border-gray-200">
+                    <Package className="mx-auto h-12 w-12 text-gray-300" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No orders available</h3>
+                    <p className="mt-1 text-sm text-gray-500">Check back later for new orders.</p>
+                  </div>
+                ) : null}
                 {availableOrders.map((order) => (
                   <div key={order.orderId} className="border p-4 rounded bg-gray-50">
                     <div className="flex justify-between items-start mb-3">
@@ -672,7 +706,15 @@ export default function DashboardPage() {
             <div className="bg-white p-6 rounded-lg shadow">
               <h2 className="text-lg font-bold mb-4">My Assigned Orders</h2>
               <div className="space-y-4">
-                {orders.length === 0 && <p className="text-gray-500">No orders assigned to you.</p>}
+                {isLoading ? (
+                  <div className="flex justify-center py-8"><LoadingSpinner size={40} /></div>
+                ) : orders.length === 0 ? (
+                  <div className="text-center py-10 bg-white rounded-lg border-2 border-dashed border-gray-200">
+                    <Package className="mx-auto h-12 w-12 text-gray-300" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No assigned orders</h3>
+                    <p className="mt-1 text-sm text-gray-500">You haven't accepted any orders yet.</p>
+                  </div>
+                ) : null}
                 {orders.map((order) => {
                   const pickupAddr = order.addresses?.find((a: any) => a.addressType === 'PICKUP');
                   const deliveryAddr = order.addresses?.find((a: any) => a.addressType === 'DELIVERY');

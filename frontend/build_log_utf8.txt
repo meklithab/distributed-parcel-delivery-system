@@ -1,0 +1,9 @@
+﻿
+> frontend@0.0.0 build
+> tsc -b && vite build
+
+src/pages/Payment/CheckoutPage.tsx(5,34): error TS6133: 'Phone' is declared but its value is never read.
+src/pages/Payment/CheckoutPage.tsx(47,10): error TS6133: 'priceBreakdown' is declared but its value is never read.
+src/pages/Payment/PaymentSucess.tsx(13,10): error TS6133: 'error' is declared but its value is never read.
+src/pages/Payment/PaymentSucess.tsx(117,27): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/pages/Payment/PaymentSucess.tsx(117,33): error TS7006: Parameter 'idx' implicitly has an 'any' type.

@@ -142,9 +142,10 @@ services:
       - ORDER_SERVICE_URL=http://order-app:3002
       - PAYMENT_SERVICE_URL=http://payment-app:3003
       - PORT=8000
+    command: npm run dev
     volumes:
-      - ./api-gateway:/app
-      - /app/node_modules
+      - ./api-gateway:/usr/src/app
+      - /usr/src/app/node_modules
     depends_on:
       - user-service
       - order-service

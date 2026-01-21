@@ -44,9 +44,17 @@ class RabbitMQService {
 
   async publish(routingKey: string, data: any): Promise<boolean> {
     if (!this.channel) {
-      console.error(`❌ Cannot publish to ${routingKey}: RabbitMQ channel not initialized!`);
-      this.connect().catch(() => { });
-      return false;
+      console.warn(`⚠️ Channel not initialized for ${routingKey}, attempting to connect...`);
+      try {
+        await this.connect();
+      } catch (err) {
+        console.error('Failed to reconnect for publish:', err);
+      }
+      
+      if (!this.channel) {
+        console.error(`❌ Cannot publish to ${routingKey}: RabbitMQ channel unavailable`);
+        throw new Error('RabbitMQ channel unavailable');
+      }
     }
 
     try {
@@ -55,7 +63,7 @@ class RabbitMQService {
       return this.channel.publish(this.exchange, routingKey, content, { persistent: true });
     } catch (error) {
       console.error(`❌ Error publishing to ${routingKey}:`, error);
-      return false;
+      throw error;
     }
   }
 

@@ -2,6 +2,7 @@
 import axios from 'axios';
 
 // Base URLs for Microservices (via NGINX Load Balancer)
+export const AUTH_API = 'http://localhost:80/api/auth';
 export const USERS_API = 'http://localhost:80/api/users';
 export const ORDERS_API = 'http://localhost:80/api/orders';
 export const PAYMENTS_API = 'http://localhost:80/api/payments';

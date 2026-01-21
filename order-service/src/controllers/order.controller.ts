@@ -666,27 +666,14 @@ export const assignCourier = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // Find the order
-    const order = await (prisma as any).order.findUnique({
-      where: { orderId: id }
-    });
-
-    if (!order) {
-      res.status(404).json({ message: 'Order not found' });
-      return;
-    }
-
-    const oldStatus = order.status;
-
-    // Only allow assignment after payment confirmation
-    if (order.status !== 'CONFIRMED') {
-      res.status(400).json({ message: 'Order must be paid/confirmed before assignment' });
-      return;
-    }
-
-    // Update order with courier assignment
-    const updatedOrder = await (prisma as any).order.update({
-      where: { orderId: id },
+    // Atomic update: only update if order exists AND is currently unassigned AND is confirmed
+    // updateMany returns a count of modified rows.
+    const result = await (prisma as any).order.updateMany({
+      where: {
+        orderId: id,
+        courierId: null,      // critical race condition check
+        status: 'CONFIRMED'   // ensures we don't assign unpaid orders
+      },
       data: {
         courierId,
         vehicleId,
@@ -694,6 +681,29 @@ export const assignCourier = async (req: Request, res: Response): Promise<void> 
         updatedAt: new Date()
       }
     });
+
+    if (result.count === 0) {
+      // The update failed. Determine why (for better error message)
+      const existingOrder = await (prisma as any).order.findUnique({ where: { orderId: id } });
+      
+      if (!existingOrder) {
+        res.status(404).json({ message: 'Order not found' });
+        return;
+      }
+      
+      if (existingOrder.courierId) {
+        res.status(409).json({ message: 'Order is already assigned to another courier' });
+        return;
+      }
+
+      if (existingOrder.status !== 'CONFIRMED') {
+         res.status(400).json({ message: 'Order is not in a confirmed state (must be paid)' });
+         return;
+      }
+
+      res.status(400).json({ message: 'Unable to assign order due to state mismatch' });
+      return;
+    }
 
     // Create courier assignment record
     await (prisma as any).courierAssignment.create({
@@ -716,6 +726,12 @@ export const assignCourier = async (req: Request, res: Response): Promise<void> 
       }
     });
 
+    // Fetch the updated order to return it (updateMany doesn't return data)
+    const updatedOrder = await (prisma as any).order.findUnique({
+      where: { orderId: id },
+      include: { addresses: true, parcels: true }
+    });
+
     // Publish order assigned event
     await orderProducer.publishOrderAssigned({
       orderId: updatedOrder.orderId,
@@ -725,12 +741,12 @@ export const assignCourier = async (req: Request, res: Response): Promise<void> 
       vehicleId
     });
 
-    // Publish status changed event for subscribers (e.g., notifications)
+    // Publish status changed event
     await orderProducer.publishOrderStatusChanged({
       orderId: updatedOrder.orderId,
       orderNumber: updatedOrder.orderNumber,
       customerId: updatedOrder.customerId,
-      oldStatus,
+      oldStatus: 'CONFIRMED',
       newStatus: updatedOrder.status,
       courierId
     });

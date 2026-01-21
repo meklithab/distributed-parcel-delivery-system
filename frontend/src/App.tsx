@@ -7,23 +7,25 @@ import OrderDetailsPage from './pages/OrderDetailsPage';
 import CheckoutPage from './pages/Payment/CheckoutPage';
 import PaymentSuccessPage from './pages/Payment/PaymentSucess';
 import ProfilePage from './pages/ProfilePage';
+import { ToastProvider } from './contexts/ToastContext';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/order/:orderId" element={<OrderDetailsPage />} />
-        <Route path="/checkout/:orderId" element={<CheckoutPage />} />
-        <Route path="/payment/success" element={<PaymentSuccessPage />} />
-        <Route path='/profile' element={<ProfilePage />}/>
+    <ToastProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/order/:orderId" element={<OrderDetailsPage />} />
+          <Route path="/checkout/:orderId" element={<CheckoutPage />} />
+          <Route path="/payment/success" element={<PaymentSuccessPage />} />
+          <Route path='/profile' element={<ProfilePage />} />
 
-
-        <Route path="/" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Router>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Router>
+    </ToastProvider>
   );
 }
 

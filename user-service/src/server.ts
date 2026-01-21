@@ -33,8 +33,6 @@ app.use('/api/users', userRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/couriers', courierRoutes);
 
-
-
 // Health Check Endpoint
 
 app.get('/health', (_req: Request, res: Response) => {

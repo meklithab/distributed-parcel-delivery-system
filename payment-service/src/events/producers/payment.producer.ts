@@ -18,6 +18,7 @@ export class PaymentProducer {
             console.log(`✅ Published payment.completed event for order ${paymentData.order_id}`);
         } catch (error) {
             console.error('Error publishing payment.completed event:', error);
+            throw error;
         }
     }
 

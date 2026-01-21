@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import api, { PAYMENTS_API, ORDERS_API } from "../../lib/axios";
 import { 
-  CreditCard, ShieldCheck, Mail, Phone, MapPin, 
+  CreditCard, ShieldCheck, Mail, MapPin, 
   Package, ChevronLeft, ArrowRight, CheckCircle2 
 } from "lucide-react";
+import { useToast } from "../../contexts/ToastContext";
 
 interface OrderItem {
   name: string;
@@ -43,8 +44,8 @@ interface OrderDetails {
 export default function CheckoutPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [order, setOrder] = useState<OrderDetails | null>(null);
-  const [priceBreakdown, setPriceBreakdown] = useState<any | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -76,7 +77,6 @@ export default function CheckoutPage() {
           parcels: orderData.parcels || []
         });
         totalAmount = calcRes.data.estimatedPrice;
-        setPriceBreakdown(calcRes.data.breakdown || null);
       } catch (calcErr) {
         // Fallback to simple local calculation if pricing service unavailable
         const baseAmount = 100;
@@ -285,6 +285,28 @@ export default function CheckoutPage() {
                 >
                   {paymentLoading ? "Processing..." : "Complete Payment"}
                   {!paymentLoading && <ArrowRight size={20} />}
+                </button>
+
+                <button 
+                  onClick={async () => {
+                    if (!order) return;
+                    setPaymentLoading(true);
+                    try {
+                      await api.post(`${PAYMENTS_API}/mock-success`, {
+                        orderId: order.orderId,
+                        amount: order.amount
+                      });
+                      navigate(`/payment/success?orderId=${order.orderId}`);
+                    } catch (e) {
+                      console.error(e);
+                      addToast("Mock payment failed", "error");
+                    } finally {
+                      setPaymentLoading(false);
+                    }
+                  }}
+                  className="w-full py-3 text-sm font-bold text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition-colors"
+                >
+                  🛠️ Simulate Success (Dev Only)
                 </button>
 
                 <div className="flex items-center justify-center gap-4 py-4 opacity-40 grayscale transition-all">

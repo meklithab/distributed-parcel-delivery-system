@@ -10,7 +10,6 @@ export default function PaymentSuccessPage() {
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -41,7 +40,6 @@ export default function PaymentSuccessPage() {
         setOrder(res.data);
       } catch (err) {
         console.error('Final fetch failed:', err);
-        setError('Could not load order details.');
       } finally {
         setLoading(false);
       }
@@ -114,7 +112,7 @@ export default function PaymentSuccessPage() {
           <div className="p-8">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-100 pb-2">Order Summary</h3>
             <div className="space-y-4 mb-10">
-              {items.map((item, idx) => (
+              {items.map((item: any, idx: number) => (
                 <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-indigo-100 transition-all">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-slate-400 group-hover:text-indigo-500 transition-colors">

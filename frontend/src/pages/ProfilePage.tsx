@@ -21,7 +21,7 @@ export default function ProfilePage() {
 
     const fetchProfile = async () => {
         try {
-            const res = await api.get(`${USERS_API}/users/me`);
+            const res = await api.get(`${USERS_API}/me`);
             setUser(res.data);
             setFormData({
                 first_name: res.data.first_name,
@@ -38,7 +38,7 @@ export default function ProfilePage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const res = await api.put(`${USERS_API}/users/me`, formData);
+            const res = await api.put(`${USERS_API}/me`, formData);
             setUser(res.data.user);
             setIsEditing(false);
             // Update local storage if needed
